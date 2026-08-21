@@ -1,0 +1,287 @@
+{
+  "mission": {
+    "statement": "Parse raw user-provided source code (single snippet/file), deterministically extract its semantic execution topology with jargon-free plain-language node descriptions, serve many users concurrently through a PostgreSQL-backed async job pipeline with prompt caching and entity-aware dedup, observe costs/token usage/agent iterations via Langfuse, and render results as 2D or 3D visualization — runnable end-to-end anywhere via Docker with only an env.example-derived .env.",
+    "terminal_signal": "On a clean machine: copy env.example to .env, fill keys, run 'docker compose up --build', submit multiple code snippets concurrently from different clients, poll jobs to completion, toggle 2D/3D, receive structured graphs with hoverable plain-language descriptions; identical/similar snippets return deduped cached topologies; traces visible in Langfuse Cloud."
+  },
+  "goals": [
+    {
+      "goal_id": "G1",
+      "title": "Scaffold & Contracts",
+      "rationale": "Establishes the Bun monorepo, shared Zod schemas (incl. async JobStatusSchema) as single source of truth, secrets contract, hooks/CI, and Docker-first testability so every later milestone runs identically anywhere.",
+      "sdd_reference": "docs/sdd/architecture.md#2-system-architecture-boundaries, #3-data-models-schemas, #7-runtime-environment-deployment-contract",
+      "completion_signal": "bun install && bun run lint && bun run typecheck pass; docker compose config validates; env.example exists and .env is gitignored"
+    },
+    {
+      "goal_id": "G2",
+      "title": "Mastra Pipeline",
+      "rationale": "Implements the deterministic analyze -> generate -> validate -> heal workflow with provider-agnostic model routing and PostgreSQL persistence wired together with the pg-boss queue schema.",
+      "sdd_reference": "docs/sdd/architecture.md#4-interface-contracts-workflow-steps, #0-scope-decisions-immutable",
+      "completion_signal": "Workflow accepts rawCode input and emits GraphTopologySchema-valid JSON; edge integrity validated; run snapshot + cache persisted to Postgres alongside pg-boss schema"
+    },
+    {
+      "goal_id": "G3",
+      "title": "Visualization Frontend",
+      "rationale": "Delivers the user-facing value: paste code, choose 2D or 3D (the only mode switch), see a Dagre-laid-out flowchart or WebGL force graph with hoverable plain-language descriptions.",
+      "sdd_reference": "docs/sdd/architecture.md#2-system-architecture-boundaries, #0-scope-decisions-immutable",
+      "completion_signal": "Browser demo renders both modes from real workflow output; layout computed client-side by Dagre/ELK only"
+    },
+    {
+      "goal_id": "G5",
+      "title": "Async Distribution, Caching & Observability",
+      "rationale": "Enables concurrent multi-user usage on commodity hardware: pg-boss job pipeline with worker pool, prompt cache, entity-aware embedding dedup, and Langfuse cost/token/iteration observability.",
+      "sdd_reference": "docs/sdd/architecture.md#5-concurrency-distribution, #6-caching-dedup-observability",
+      "completion_signal": "N simultaneous POST /analyses all reach completed state without dropped jobs; duplicate snippet returns cached topology above SIMILARITY_THRESHOLD; Langfuse traces show token usage and costs"
+    },
+    {
+      "goal_id": "G4",
+      "title": "Verification & Quality Gates",
+      "rationale": "Proves correctness (unit/integration), topology quality (Mastra evals), end-to-end behavior under concurrency, and containerized portability before mission completion.",
+      "sdd_reference": "docs/sdd/architecture.md#72-docker-topology, .context/AGENT.md#validation-acceptance-lifecycle",
+      "completion_signal": "Vitest suite green; eval scores recorded; Playwright E2E green inside docker compose smoke test including parallel submissions"
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "T1.1",
+      "goal_id": "G1",
+      "title": "Bun monorepo scaffold",
+      "rationale": "Foundation for all packages; must compile from first commit.",
+      "sdd_reference": "docs/sdd/architecture.md#2-system-architecture-boundaries",
+      "files": ["package.json", "tsconfig.json", ".gitignore"],
+      "blocked_by": [],
+      "parallel_group": null,
+      "acceptance_test": "bun install && bun run typecheck exits 0 with workspace resolution across frontend/, backend/, packages/types/",
+      "sdd_snippet": "The architecture is an end-to-end TypeScript monorepo utilizing the Bun runtime. Frontend: Next.js (App Router) integrating @xyflow/react for 2D flowcharts and 3d-force-graph for WebGL 3D execution tracing. Backend: Bun server exposing type-safe endpoints."
+    },
+    {
+      "task_id": "T1.2",
+      "goal_id": "G1",
+      "title": "Shared Zod schemas package",
+      "rationale": "Single source of truth consumed by backend workflow schemas, DB layer, and frontend rendering — including the async job contract so the frontend builds against it before G5 exists.",
+      "sdd_reference": "docs/sdd/architecture.md#3-data-models-schemas",
+      "files": ["packages/types/src/index.ts", "packages/types/package.json"],
+      "blocked_by": ["T1.1"],
+      "parallel_group": "g1-contracts",
+      "acceptance_test": "Unit test parses sample payloads against GraphTopologySchema (required plainDescription) and JobStatusSchema; typecheck passes",
+      "sdd_snippet": "NodeSchema { id, label, type: enum[entry|process|io|branch|terminal], plainDescription: string, metadata? } EdgeSchema { id, source, target, animated default true } GraphTopologySchema { nodes[], edges[], detectedPatterns[] } GraphCacheSchema { codeHash, language, topologyPayload, embedding?, createdAt } JobStatusSchema { jobId, status: enum[queued|running|completed|failed], topology?, error? }. All validation uses Zod; no manual type duplication."
+    },
+    {
+      "task_id": "T1.3",
+      "goal_id": "G1",
+      "title": "Husky pre-commit hooks + CI pipeline",
+      "rationale": "Enforces strict static analysis and Zod schema validation gates mandated by protocol.",
+      "sdd_reference": ".context/AGENT.md#global-tooling-memory-protocols",
+      "files": [".husky/pre-commit", ".github/workflows/ci.yml"],
+      "blocked_by": ["T1.1"],
+      "parallel_group": "g1-contracts",
+      "acceptance_test": "Committing a file with a type error or failing lint is rejected by the hook; CI workflow lints/typechecks/tests on push",
+      "sdd_snippet": "Pre-Commit Data Validation: The repository must enforce Husky pre-commit hooks that run strict static analysis and Zod schema validations before any code is staged."
+    },
+    {
+      "task_id": "T1.4",
+      "goal_id": "G1",
+      "title": "env.example + Zod env loader",
+      "rationale": "Secrets contract deliverable covering model routing, queue, embeddings, and Langfuse vars; agents never read .env — boot-time Zod validation of variable names only.",
+      "sdd_reference": "docs/sdd/architecture.md#71-required-environment-variables-envexample, #0-scope-decisions-immutable",
+      "files": ["env.example", "backend/src/env.ts"],
+      "blocked_by": ["T1.1"],
+      "parallel_group": "g1-contracts",
+      "acceptance_test": "Boot fails fast when required vars missing; passes with valid set; absent LANGFUSE_* keys disable tracing gracefully; .env confirmed gitignored",
+      "sdd_snippet": "Vars: MODEL_PROVIDER, MODEL_ID, MODEL_BASE_URL?, OPENAI_API_KEY, GROQ_API_KEY, DATABASE_URL, WORKER_CONCURRENCY=4, EMBEDDING_MODEL, SIMILARITY_THRESHOLD=0.95, LANGFUSE_PUBLIC_KEY?, LANGFUSE_SECRET_KEY?, LANGFUSE_BASE_URL?, PORT, NODE_ENV. env.example holds names+placeholders only; .env gitignored; never read by agents."
+    },
+    {
+      "task_id": "T1.5",
+      "goal_id": "G1",
+      "title": "Dockerfile + docker-compose (Caddy proxy + app replicas + PostgreSQL)",
+      "rationale": "Docker-first testability with replica parity: anyone runs the full stack anywhere; local Caddy proxy mirrors production LB distribution.",
+      "sdd_reference": "docs/sdd/architecture.md#72-docker-topology, #52-stateless-replicas",
+      "files": ["Dockerfile", "docker-compose.yml", "Caddyfile"],
+      "blocked_by": ["T1.4"],
+      "parallel_group": null,
+      "acceptance_test": "docker compose config validates; app service scales to >=2 healthy replicas behind Caddy; db healthcheck-gated with named volume",
+      "sdd_snippet": "App service: multi-stage Dockerfile on Bun base; replica-ready (stateless). DB: PostgreSQL 16, named volume, healthcheck-gated. Proxy: Caddy reverse proxy fronting N app replicas. Acceptance: docker compose up --build yields end-to-end demo using only .env values."
+    },
+    {
+      "task_id": "T2.1",
+      "goal_id": "G2",
+      "title": "analyzeCodeStep — AST/structural extraction",
+      "rationale": "First workflow step; grounds LLM generation in deterministic structural facts and later feeds the entity-aware dedup representation.",
+      "sdd_reference": "docs/sdd/architecture.md#41-mastra-execution-steps",
+      "files": ["backend/src/workflow/steps/analyze-code.ts"],
+      "blocked_by": ["T1.2"],
+      "parallel_group": null,
+      "acceptance_test": "Step unit test extracts entry points, branches, IO ops, and named entities from sample JS/TS snippet into typed intermediate analysis",
+      "sdd_snippet": "analyzeCodeStep: Parses rawCode and extracts AST/structural logic."
+    },
+    {
+      "task_id": "T2.2",
+      "goal_id": "G2",
+      "title": "generateTopologyStep — provider-agnostic LLM topology generation",
+      "rationale": "Core AI step; routes through Mastra model routing (OpenAI default, Groq swappable via env) and emits strictly schema-valid output including plainDescription per node.",
+      "sdd_reference": "docs/sdd/architecture.md#0-scope-decisions-immutable, #41-mastra-execution-steps",
+      "files": ["backend/src/workflow/steps/generate-topology.ts"],
+      "blocked_by": ["T2.1"],
+      "parallel_group": null,
+      "acceptance_test": "With mocked model, step output validates against GraphTopologySchema; no provider SDK imported directly",
+      "sdd_snippet": "generateTopologyStep: Invokes the LLM to generate the JSON topology. Must output strictly to the GraphTopologySchema. No Provider Coupling: workflow steps never import provider SDKs directly; all model calls go through Mastra model-routing configured via MODEL_PROVIDER/MODEL_ID/MODEL_BASE_URL."
+    },
+    {
+      "task_id": "T2.3",
+      "goal_id": "G2",
+      "title": "validateGraphStep + selfHealBranch",
+      "rationale": "Guarantees referential integrity of the graph before it reaches clients; auto-repair loop prevents agent drift from breaking UX.",
+      "sdd_reference": "docs/sdd/architecture.md#41-mastra-execution-steps",
+      "files": ["backend/src/workflow/steps/validate-graph.ts", "backend/src/workflow/index.ts"],
+      "blocked_by": ["T2.2"],
+      "parallel_group": null,
+      "acceptance_test": "Pure-TS validator catches dangling edges; self-heal branch retries with injected Zod errors max 2 times then fails deterministically",
+      "sdd_snippet": "validateGraphStep: A pure TS validation step. Verifies that all edge.source and edge.target values exist in the nodes array. selfHealBranch: Triggers if validation fails. Injects the Zod error into the context and retries (maximum of 2 retries)."
+    },
+    {
+      "task_id": "T2.4",
+      "goal_id": "G2",
+      "title": "PostgreSQL wiring: @mastra/pg store + graph cache + pg-boss schema",
+      "rationale": "No shadow databases rule: durable snapshots, memory, caches, AND the job queue are born together in the single Postgres instance — queue created with the database implementation per user mandate.",
+      "sdd_reference": "docs/sdd/architecture.md#32-postgresql-cache-schema-prismadrizzle, #51-job-queue-pg-boss, #2-system-architecture-boundaries",
+      "files": ["backend/src/storage/postgres.ts", "backend/src/queue/boss.ts"],
+      "blocked_by": ["T1.2"],
+      "parallel_group": null,
+      "acceptance_test": "Integration test against compose db: MastraStore persists/resumes snapshot; GraphCacheSchema round-trips keyed by codeHash; pg-boss send/fetch works on same DATABASE_URL",
+      "sdd_snippet": "PostgreSQL is the global storage layer via @mastra/pg (snapshots, memory, traces, evals). pg-boss lives inside the existing PostgreSQL instance — its schema is created together with the database implementation (same migration/wiring step as the Mastra store). GraphCacheSchema keyed by SHA-256 codeHash. No Redis/libSQL/shadow DBs."
+    },
+    {
+      "task_id": "T3.1",
+      "goal_id": "G3",
+      "title": "Code-input UI + typed polling API client",
+      "rationale": "Entry point for non-coders; submits analysis jobs and polls JobStatusSchema until pending->ready transitions complete; consumes shared Zod types directly.",
+      "sdd_reference": "docs/sdd/architecture.md#33-job-status-schema-async-api-contract, #5-constraints-anti-patterns",
+      "files": ["frontend/app/page.tsx", "frontend/lib/api-client.ts"],
+      "blocked_by": ["T1.2"],
+      "parallel_group": null,
+      "acceptance_test": "Component test: paste triggers POST returning jobId; client polls status through queued->running->completed using shared JobStatusSchema parsing",
+      "sdd_snippet": "POST /analyses returns { jobId }; GET /analyses/:jobId returns JobStatusSchema { jobId, status: queued|running|completed|failed, topology?, error? }. Frontend must consume the Zod schemas directly from the backend shared package; no manual type duplication."
+    },
+    {
+      "task_id": "T3.2",
+      "goal_id": "G3",
+      "title": "2D renderer (@xyflow/react + Dagre)",
+      "rationale": "Primary accessible visualization; client-side layout math only, with plainDescription hover toast.",
+      "sdd_reference": "docs/sdd/architecture.md#2-system-architecture-boundaries, #8-constraints-anti-patterns, #31-graph-topology-schema",
+      "files": ["frontend/components/graph/graph-2d.tsx"],
+      "blocked_by": ["T3.1"],
+      "parallel_group": null,
+      "acceptance_test": "Renders nodes/edges from fixture topology with animated edges, node-type colors, Dagre-computed positions, hover tooltip showing plainDescription",
+      "sdd_snippet": "Next.js integrates @xyflow/react for 2D flowcharts. All layout math delegated to Dagre/ELK on the client side; AI agents forbidden from calculating X/Y coordinates. Every node carries plainDescription surfaced as hover tooltip/toast."
+    },
+    {
+      "task_id": "T3.3",
+      "goal_id": "G3",
+      "title": "3D renderer (3d-force-graph)",
+      "rationale": "WebGL alternative view for complex topologies; same data contract, same plain-language tooltips.",
+      "sdd_reference": "docs/sdd/architecture.md#2-system-architecture-boundaries, #0-scope-decisions-immutable",
+      "files": ["frontend/components/graph/graph-3d.tsx"],
+      "blocked_by": ["T3.1"],
+      "parallel_group": "g3-renderers",
+      "acceptance_test": "Renders fixture topology as force-directed 3D graph; hover surfaces plainDescription; no layout logic duplicated from 2D path beyond adapter",
+      "sdd_snippet": "Next.js integrates 3d-force-graph for WebGL 3D execution tracing. User makes exactly one visualization choice: 2D or 3D. plainDescription shown on hover/toast in both renderers."
+    },
+    {
+      "task_id": "T3.4",
+      "goal_id": "G3",
+      "title": "2D/3D mode toggle",
+      "rationale": "The single user-facing mode switch; wires both renderers behind one control without exposing other settings.",
+      "sdd_reference": "docs/sdd/architecture.md#0-scope-decisions-immutable",
+      "files": ["frontend/components/mode-toggle.tsx", "frontend/components/graph/graph-view.tsx"],
+      "blocked_by": ["T3.2", "T3.3"],
+      "parallel_group": null,
+      "acceptance_test": "Toggle switches renderers preserving loaded topology; exactly two options available; state survives re-render",
+      "sdd_snippet": "The end user makes exactly one visualization choice: 2D or 3D. No other mode toggles are exposed."
+    },
+    {
+      "task_id": "T5.1",
+      "goal_id": "G5",
+      "title": "Async API endpoints + worker pool",
+      "rationale": "The concurrency core: fire-and-poll distribution that lets many users share one small machine without connection exhaustion.",
+      "sdd_reference": "docs/sdd/architecture.md#51-job-queue-pg-boss, #52-stateless-replicas",
+      "files": ["backend/src/api/routes/analyses.ts", "backend/src/queue/worker.ts"],
+      "blocked_by": ["T2.4"],
+      "parallel_group": null,
+      "acceptance_test": "N=8 simultaneous POST /analyses all enqueue; worker pool processes up to WORKER_CONCURRENCY in parallel; all jobs reach completed with valid topology; GET returns correct statuses throughout",
+      "sdd_snippet": "POST /analyses enqueues via pg-boss, returns { jobId }. GET /analyses/:jobId returns JobStatusSchema. In-process worker pool pulls jobs with WORKER_CONCURRENCY (default 4); durable snapshots make jobs resumable across restarts and deploys. App holds zero session state."
+    },
+    {
+      "task_id": "T5.2",
+      "goal_id": "G5",
+      "title": "Prompt cache layer",
+      "rationale": "Identical prompts skip the LLM entirely, cutting cost and latency for repeated analyses.",
+      "sdd_reference": "docs/sdd/architecture.md#61-prompt-cache",
+      "files": ["backend/src/services/prompt-cache.ts"],
+      "blocked_by": ["T2.4"],
+      "parallel_group": "g5-platform",
+      "acceptance_test": "Same rendered prompt+model twice: second call hits cache table keyed by (promptHash, modelId) without invoking mocked LLM",
+      "sdd_snippet": "Postgres table keyed by (promptHash, modelId) -> cached completion payload. Hash = SHA-256 of fully rendered prompt string + model id. Cache hits skip the LLM entirely for identical prompts."
+    },
+    {
+      "task_id": "T5.3",
+      "goal_id": "G5",
+      "title": "Entity-aware embedding dedup service",
+      "rationale": "Similar snippets return cached validated topology instantly while keeping real entity names — ludic, meaningful labels preserved for non-coders.",
+      "sdd_reference": "docs/sdd/architecture.md#62-entity-aware-similar-snippet-dedup-embeddings",
+      "files": ["backend/src/services/dedup.ts"],
+      "blocked_by": ["T2.4"],
+      "parallel_group": "g5-platform",
+      "acceptance_test": "Two structurally-equivalent snippets differing only in ordering/formatting match above SIMILARITY_THRESHOLD and return the first topology; embedding calls themselves hit the embedding cache table",
+      "sdd_snippet": "Entity-aware normalized representation: AST-derived skeleton preserving entity names (functions, variables, parameters) alongside control-flow shape, embedded via provider-routed EMBEDDING_MODEL and stored on the topology cache entry. Cosine similarity above SIMILARITY_THRESHOLD returns existing validated topology. Embedding calls subject to embedding-cache table (inputHash, model -> vector)."
+    },
+    {
+      "task_id": "T5.4",
+      "goal_id": "G5",
+      "title": "Langfuse observability wiring",
+      "rationale": "Cost, token usage, and agent iteration visibility with zero custom instrumentation via Mastra's official exporter.",
+      "sdd_reference": "docs/sdd/architecture.md#63-observability-langfuse-cloud",
+      "files": ["backend/src/observability/langfuse.ts"],
+      "blocked_by": ["T2.4"],
+      "parallel_group": "g5-platform",
+      "acceptance_test": "With keys present: workflow run produces trace in Langfuse containing spans for each step with token usage/cost; with keys absent: app boots and runs normally with tracing disabled",
+      "sdd_snippet": "Mastra's native observability exports to Langfuse Cloud free tier via official @mastra/langfuse LangfuseExporter. Captured per trace: span timeline of workflow steps and agent iterations, token usage, cost data, timing. Absent keys => tracing disabled; app still runs."
+    },
+    {
+      "task_id": "T4.1",
+      "goal_id": "G4",
+      "title": "Vitest unit/integration suite",
+      "rationale": "Regression safety net across schemas, workflow steps, queue endpoints, and cache/dedup services.",
+      "sdd_reference": ".context/AGENT.md#5-sub-agent-sdet",
+      "files": ["tests/schema.test.ts", "tests/workflow.test.ts"],
+      "blocked_by": ["T2.3"],
+      "parallel_group": "g4-quality",
+      "acceptance_test": "bun test (vitest) exits 0 covering schema parsing, validator rejection cases, self-heal retry limit",
+      "sdd_snippet": "@sdet: Write unit, integration, and E2E tests validating the criteria specified in the SDD. Report pass/fail logs directly back into the task card before review sign-off."
+    },
+    {
+      "task_id": "T4.2",
+      "goal_id": "G4",
+      "title": "Mastra evals scoring topology quality",
+      "rationale": "Measures whether generated graphs are logical and sense-making, not just schema-valid; scores persist to Postgres and Langfuse traces only (no UI surface).",
+      "sdd_reference": ".context/AGENT.md#5-sub-agent-sdet, docs/sdd/architecture.md#63-observability-langfuse-cloud",
+      "files": ["tests/evals/topology.eval.ts"],
+      "blocked_by": ["T2.4"],
+      "parallel_group": "g4-quality",
+      "acceptance_test": "Eval run produces scores above defined threshold for reference snippets; results persisted to Postgres observability storage and visible as Langfuse trace metadata",
+      "sdd_snippet": "Utilize Mastra's built-in evaluation tools (evals) to score agent outputs and measure quality alongside standard unit tests. Eval scores persist to Postgres observability storage and appear in Langfuse traces only - no UI surface."
+    },
+    {
+      "task_id": "T4.3",
+      "goal_id": "G4",
+      "title": "E2E happy path + Docker compose smoke test incl. parallel load",
+      "rationale": "Terminal acceptance: mission-complete proof on a clean machine, inside containers, under concurrent multi-user load.",
+      "sdd_reference": "docs/sdd/architecture.md#72-docker-topology, #1-high-level-mission",
+      "files": ["e2e/happy-path.spec.ts"],
+      "blocked_by": ["T1.5", "T2.4", "T3.4", "T4.1", "T5.1"],
+      "parallel_group": null,
+      "acceptance_test": "Playwright E2E inside docker compose: two clients submit simultaneously -> both poll to completed -> select 2D -> graphs render -> toggle 3D -> render; duplicate second submission resolves via dedup/cache path",
+      "sdd_snippet": "Acceptance: docker compose up --build on a clean machine yields the end-to-end demo using only .env values, surviving multiple simultaneous submissions."
+    }
+  ],
+  "topological_order": ["T1.1", "T1.2", "T1.3", "T1.4", "T1.5", "T2.1", "T3.1", "T2.2", "T3.2", "T3.3", "T2.3", "T2.4", "T5.1", "T5.2", "T5.3", "T5.4", "T3.4", "T4.1", "T4.2", "T4.3"],
+  "validation_passed": true
+}
