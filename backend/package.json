@@ -1,0 +1,12 @@
+{
+  "name": "@underhood/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@underhood/types": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

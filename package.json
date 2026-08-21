@@ -1,0 +1,25 @@
+{
+  "name": "underhood",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Turns code into visual, plain-language representations for non-coders and developers alike.",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "packages/*"
+  ],
+  "packageManager": "bun@1.3.14",
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "bun run --filter '*' dev",
+    "build": "bun run --filter '*' build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}

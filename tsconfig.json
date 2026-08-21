@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "jsx": "preserve",
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@underhood/types": ["./packages/types/src/index.ts"]
+    }
+  },
+  "include": ["packages/types/src/**/*.ts", "backend/src/**/*.ts", "frontend/**/*.ts", "frontend/**/*.tsx"],
+  "exclude": ["node_modules", "dist", ".next"]
+}
