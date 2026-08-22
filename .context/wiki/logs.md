@@ -9,3 +9,4 @@ Chronological episodic memory lives in `log/`:
 | 2026-08-21 | [Goal 1 Complete — Scaffold & Contracts](log/2026-08-21-goal1-scaffold-complete.md) |
 | 2026-08-21 | [T2.1 Complete — analyzeCodeStep](log/2026-08-21-t2.1-analyze-code-step.md) |
 | 2026-08-21 | [T2.2 Complete — generateTopologyStep](log/2026-08-21-t2.2-generate-topology-step.md) |
+| 2026-08-21 | [T2.3 Complete — validateGraphStep + selfHealBranch](log/2026-08-21-t2.3-validate-heal.md) |
