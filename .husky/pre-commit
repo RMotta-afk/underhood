@@ -1,0 +1,3 @@
+# Underhood pre-commit gate: strict static analysis + Zod schema validation.
+# Runs the full typecheck and test suite before any code is staged (AGENT.md).
+bun run typecheck && bun test
