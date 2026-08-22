@@ -5,11 +5,17 @@
   "type": "module",
   "dependencies": {
     "@mastra/core": "^1.61.0",
+    "@mastra/pg": "^1.21.1",
     "@underhood/types": "workspace:*",
     "acorn": "^8.18.0",
+    "pg": "^8.23.0",
+    "pg-boss": "^12.27.0",
     "zod": "^3.24.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }
