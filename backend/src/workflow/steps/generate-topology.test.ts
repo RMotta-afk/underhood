@@ -1,0 +1,100 @@
+import { describe, expect, test } from "bun:test";
+import {
+  buildTopologyPrompt,
+  generateTopology,
+  resolveModel,
+  TOPOLOGY_INSTRUCTIONS,
+  type TopologyGenerator,
+} from "./generate-topology";
+import { GraphTopologySchema } from "@underhood/types";
+import type { StructuralAnalysis } from "./analyze-code";
+
+const fixtureAnalysis: StructuralAnalysis = {
+  language: "typescript",
+  entryPoints: ["main"],
+  entities: [
+    { name: "loadConfig", kind: "function" },
+    { name: "main", kind: "function" },
+  ],
+  branches: [{ kind: "if" }, { kind: "loop" }],
+  ioOperations: [
+    { kind: "console", callee: "console.log" },
+    { kind: "fetch", callee: "fetch" },
+  ],
+  statementCount: 12,
+  hasAsync: true,
+  normalizedSkeleton: "entities:function main,function loadConfig|branches:{...}",
+};
+
+function mockGenerator(object: unknown): TopologyGenerator {
+  return {
+    async generate() {
+      return { object };
+    },
+  };
+}
+
+const validFixture = {
+  nodes: [
+    { id: "n1", label: "main", type: "entry", plainDescription: "Starts the program." },
+    { id: "n2", label: "Fetch data", type: "io", plainDescription: "Downloads data from the internet." },
+    { id: "n3", label: "Done", type: "terminal", plainDescription: "The program finishes." },
+  ],
+  edges: [
+    { id: "e1", source: "n1", target: "n2" },
+    { id: "e2", source: "n2", target: "n3" },
+  ],
+  detectedPatterns: ["Retry Loop"],
+};
+
+describe("generateTopology (T2.2)", () => {
+  test("returns schema-valid topology from a compliant generator", async () => {
+    const result = await generateTopology(fixtureAnalysis, mockGenerator(validFixture));
+    expect(GraphTopologySchema.safeParse(result).success).toBe(true);
+    expect(result.nodes[0]?.plainDescription).toContain("Starts");
+  });
+
+  test("rejects output missing plainDescription even if generator misbehaves", async () => {
+    const invalid = {
+      ...validFixture,
+      nodes: [{ id: "n1", label: "main", type: "entry" }],
+    };
+    // structuredOutput would normally enforce this; the defensive parse is the backstop.
+    await expect(
+      generateTopology(invalid as never, mockGenerator(invalid))
+    ).rejects.toThrow();
+  });
+
+  test("prompt carries entity names and plain-language mandate", () => {
+    const prompt = buildTopologyPrompt(fixtureAnalysis);
+    expect(prompt).toContain("loadConfig");
+    expect(prompt).toContain("main");
+    expect(prompt).toContain("2 branch(es)");
+    expect(prompt).toContain("asynchronous");
+  });
+
+  test("instructions enforce jargon-free descriptions and edge integrity", () => {
+    expect(TOPOLOGY_INSTRUCTIONS).toContain("plainDescription");
+    expect(TOPOLOGY_INSTRUCTIONS).toContain("existing node ids");
+  });
+
+  test("model resolution is env-driven only (provider abstraction)", () => {
+    const openaiDefault = resolveModel({
+      OPENAI_API_KEY: "sk",
+      MODEL_PROVIDER: "openai",
+      MODEL_ID: "gpt-4o",
+    } as NodeJS.ProcessEnv);
+    expect(openaiDefault.model).toBe("openai/gpt-4o");
+
+    const groqCustom = resolveModel({
+      GROQ_API_KEY: "gsk",
+      MODEL_PROVIDER: "groq",
+      MODEL_ID: "llama-3.3-70b-versatile",
+      MODEL_BASE_URL: "https://api.groq.com/openai/v1",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(groqCustom.model).toEqual({
+      id: "custom/llama-3.3-70b-versatile",
+      url: "https://api.groq.com/openai/v1",
+    });
+  });
+});
