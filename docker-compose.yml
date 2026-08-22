@@ -1,0 +1,46 @@
+name: underhood
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: underhood
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d underhood"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build: .
+    # Secrets come from .env (copy env.example). Compose tolerates its absence locally.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/underhood
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  # Local parity for Railway's native load balancer: front N replicas (`--scale app=N`).
+  proxy:
+    image: caddy:2-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  pgdata:

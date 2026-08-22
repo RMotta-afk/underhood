@@ -1,0 +1,28 @@
+# Dependencies are installed fresh inside the image (deps stage).
+node_modules
+**/node_modules
+
+# Git history and secrets must never enter the build context.
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+# Build artifacts and caches
+dist
+build
+out
+.next
+coverage
+*.tsbuildinfo
+.eslintcache
+
+# CI / hooks (husky prepare is skipped in-image)
+.husky
+.github
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.log
