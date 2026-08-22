@@ -15,6 +15,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@underhood/types": "workspace:*",
+        "acorn": "^8.18.0",
         "zod": "^3.24.0",
       },
     },
@@ -43,6 +44,8 @@
     "@underhood/frontend": ["@underhood/frontend@workspace:frontend"],
 
     "@underhood/types": ["@underhood/types@workspace:packages/types"],
+
+    "acorn": ["acorn@8.18.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ=="],
 
     "bun-types": ["bun-types@1.4.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q=="],
 
