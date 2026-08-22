@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@underhood/types": "workspace:*"
+    "@underhood/types": "workspace:*",
+    "zod": "^3.24.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
