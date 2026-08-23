@@ -1,5 +1,5 @@
 # Wiki Index — Structural State
-**Last refreshed:** 2026-08-23 (post G4)
+**Last refreshed:** 2026-08-23 (post G3 closure: T3.2/T3.3/T3.4 task cards transitioned to [DONE] with acceptance logs)
 
 ## Project
 Underhood — code/workflow visualization platform. Parses a single snippet/file, extracts semantic topology (with plain-language node descriptions), serves many users concurrently via a PostgreSQL-backed async job pipeline (pg-boss), caches prompts and dedups similar snippets via entity-aware embeddings, observes costs/tokens/iterations in Langfuse Cloud, and renders as 2D or 3D.
