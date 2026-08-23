@@ -1,38 +1,42 @@
 # Wiki Index — Structural State
-**Last refreshed:** 2026-08-21 (post rev. 3)
+**Last refreshed:** 2026-08-23 (post G4)
 
 ## Project
 Underhood — code/workflow visualization platform. Parses a single snippet/file, extracts semantic topology (with plain-language node descriptions), serves many users concurrently via a PostgreSQL-backed async job pipeline (pg-boss), caches prompts and dedups similar snippets via entity-aware embeddings, observes costs/tokens/iterations in Langfuse Cloud, and renders as 2D or 3D.
 
 ## Current Lifecycle Position
-- **Phase 0 / 0.5: COMPLETE** (bootstrap log)
-- **SDD rev. 3 planning change: COMPLETE** — concurrency + caching + observability folded into docs, DAG, cards
-- **Next:** Implementation dispatch begins at `T1.1` per topological order in `.context/decomposition.json`
+- **G1 Scaffold & Contracts: COMPLETE**
+- **G2 Mastra Pipeline: COMPLETE**
+- **G3 Visualization Frontend: COMPLETE** (T3.1 input/poll client, T3.2 2D Dagre renderer, T3.3 3D force-graph renderer, T3.4 2D/3D toggle)
+- **G5 Async/Caching/Observability: COMPLETE** (pg-boss worker pool, prompt cache, embedding dedup — now wired into the live executor — Langfuse)
+- **G4 Quality Gates: COMPLETE** (acceptance suites, Mastra scorers + Postgres-persisted evals, Docker/Playwright smoke)
+- **Next:** operator-keyed full E2E pass; optional CI workflow under .github/workflows
 
 ## Structure Map
 | Path | Purpose | Status |
 |---|---|---|
 | `docs/sdd/architecture.md` | Semantic anchor — all architecture truth | rev. 3 |
 | `.context/decomposition.json` | Task DAG (Mission → 5 Goals → 20 Tasks) | validated (acyclic) |
-| `tasks/T{goal}.{n}.md` | Atomic task cards | all `[BLOCKED]`, awaiting dispatch |
-| `packages/types/` | Shared Zod schemas incl. JobStatusSchema | not created (T1.2) |
-| `backend/` | Bun + Mastra workflow + Postgres store + pg-boss queue | not created (G2/G5) |
-| `frontend/` | Next.js App Router, polling client, 2D/3D renderers | not created (G3) |
-| `env.example` | Secrets contract (names only; incl. LANGFUSE_*, WORKER_CONCURRENCY) | not created (T1.4) |
-| `Dockerfile`, `docker-compose.yml`, `Caddyfile` | Docker-first testability with replica parity | not created (T1.5) |
+| `tasks/T{goal}.{n}.md` | Atomic task cards | implementation tasks [DONE]; see cards for logs |
+| `packages/types/` | Shared Zod schemas incl. JobStatusSchema | complete |
+| `backend/` | Bun + Mastra workflow + Postgres store + pg-boss queue + cache/dedup executor | complete |
+| `frontend/` | Next.js App Router, polling client, GraphView (2D/3D) | complete |
+| `tests/` | Cross-cutting schema/workflow suites + evals runner | complete |
+| `e2e/`, `playwright.config.ts` | Browser happy-path smoke vs compose stack | complete (full pass needs model keys) |
+| `Dockerfile`, `docker-compose.yml`, `Caddyfile` | One app container (backend :3000 + frontend :3001), db, Caddy parity proxy | complete |
 
 ## Agent Positions
 | Agent | Current Assignment |
 |---|---|
-| @principal_ai | Dispatch T1.1 next session |
-| @architect | Standby (contracts anchored in SDD rev. 3) |
-| @devops | Queued for T1.3, T1.4, T1.5 |
-| @backend_engineer | Queued for G2 chain + G5 (queue, worker pool, caches, Langfuse) |
-| @frontend_engineer | Queued for G3 chain |
-| @sdet | Queued for G4 + acceptance gates on every task |
+| @principal_ai | Mission acceptance review (terminal signal) |
+| @architect | Standby |
+| @devops | Optional: CI workflow (.github/workflows) |
+| @backend_engineer | Standby |
+| @frontend_engineer | Standby |
+| @sdet | Operator-keyed E2E pass when .env is provisioned |
 
 ## Critical Path
-`T1.1 → T1.2 → T2.1 → T2.2 → T2.3 → … , G5 chain off T2.4, … → T4.3`
+Implementation DAG fully discharged; only operator-gated acceptance remains.
 
 ## Cross-References
 - Mission & terminal signal: `.context/decomposition.json#/mission`
