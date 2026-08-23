@@ -26,7 +26,10 @@ export const EdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1), // Must map to a valid NodeSchema id
   target: z.string().min(1), // Must map to a valid NodeSchema id
-  animated: z.boolean().default(true),
+  // Preprocess-based default instead of .default(): OpenAI structured outputs
+  // require every property to appear in "required"; .default() would omit it
+  // from the emitted JSON Schema and fail response_format validation.
+  animated: z.preprocess((v) => v ?? true, z.boolean()),
 });
 export type GraphEdge = z.infer<typeof EdgeSchema>;
 
