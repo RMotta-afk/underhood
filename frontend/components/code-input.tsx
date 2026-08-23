@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { JobStatus } from "@underhood/types";
-import Graph2D from "./graph/graph-2d";
+import GraphView from "./graph-view";
 import {
   ApiError,
   asTopology,
@@ -90,8 +90,7 @@ export default function CodeInput() {
               <span className="text-sky-300">{topology.detectedPatterns.join(", ")}</span>
             </p>
           )}
-          {/* 2D renderer (T3.2); the 2D/3D toggle arrives in T3.4 */}
-          <Graph2D topology={topology} />
+          <GraphView topology={topology} />
         </div>
       )}
     </section>

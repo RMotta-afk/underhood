@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "3d-force-graph": "^1.80.0",
     "@dagrejs/dagre": "^3.1.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@underhood/types": "workspace:*",
