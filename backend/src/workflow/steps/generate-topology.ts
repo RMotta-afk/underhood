@@ -24,13 +24,30 @@ export interface TopologyGenerator {
 /** Resolve the model from validated env only (SDD §0 provider abstraction).
  * Accepts an already-validated env slice (tests) or runs fail-fast loadEnv()
  * against the FULL ambient environment — a partial source would drop
- * OPENAI_API_KEY/GROQ_API_KEY and fail the provider refinement. */
+ * OPENAI_API_KEY/GROQ_API_KEY and fail the provider refinement.
+ * Custom MODEL_BASE_URL endpoints bypass provider credential auto-wiring,
+ * so the provider key is attached explicitly (Mastra openai-compatible path). */
 export function resolveModel(
-  validated?: Pick<Env, "MODEL_PROVIDER" | "MODEL_ID" | "MODEL_BASE_URL">
-): { model: string | { id: `${string}/${string}`; url: string } } {
+  validated?: Pick<
+    Env,
+    "MODEL_PROVIDER" | "MODEL_ID" | "MODEL_BASE_URL" | "OPENAI_API_KEY" | "GROQ_API_KEY"
+  >
+): {
+  model:
+    | string
+    | { id: `${string}/${string}`; url: string; apiKey?: string };
+} {
   const e = validated ?? loadEnv();
   if (e.MODEL_BASE_URL) {
-    return { model: { id: `custom/${e.MODEL_ID}`, url: e.MODEL_BASE_URL } };
+    const apiKey =
+      e.MODEL_PROVIDER === "groq" ? e.GROQ_API_KEY : e.OPENAI_API_KEY;
+    return {
+      model: {
+        id: `custom/${e.MODEL_ID}`,
+        url: e.MODEL_BASE_URL,
+        ...(apiKey ? { apiKey } : {}),
+      },
+    };
   }
   return { model: `${e.MODEL_PROVIDER}/${e.MODEL_ID}` };
 }
