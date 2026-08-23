@@ -53,7 +53,9 @@ export class EnvValidationError extends Error {
 }
 
 /** Parse and validate an env source. Throws EnvValidationError (fail-fast) on any problem. */
-export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+export function loadEnv(
+  source: Record<string, string | undefined> = process.env
+): Env {
   const parsed = EnvSchema.safeParse(source);
   if (!parsed.success) {
     throw new EnvValidationError(parsed.error.issues);

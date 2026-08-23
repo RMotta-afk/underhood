@@ -50,5 +50,13 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-non-null-assertion": "off",
     },
+  },
+  {
+    // React/Next UI code: event-handler async patterns are idiomatic here.
+    files: ["frontend/**/*.tsx"],
+    rules: {
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/no-confusing-void-expression": "off",
+    },
   }
 );

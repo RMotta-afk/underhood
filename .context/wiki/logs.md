@@ -15,3 +15,4 @@ Chronological episodic memory lives in `log/`:
 | 2026-08-21 | [T5.1 Complete — Async API + Worker Pool](log/2026-08-21-t5.1-async-api-worker-pool.md) |
 | 2026-08-21 | [T5.2 + T5.3 Complete — Prompt Cache + Embedding Dedup](log/2026-08-21-t5.2-t5.3-caching-dedup.md) |
 | 2026-08-21 | [T5.4 + Goal 5 Complete — Langfuse Observability](log/2026-08-21-t5.4-langfuse-goal5-complete.md) |
+| 2026-08-23 | [T3.1 Complete — Frontend UI + Polling Client](log/2026-08-23-t3.1-frontend-ui-client.md) |

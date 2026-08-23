@@ -1,0 +1,104 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import type { JobStatus } from "@underhood/types";
+import {
+  ApiError,
+  asTopology,
+  pollAnalysis,
+  submitAnalysis,
+} from "../lib/api-client";
+
+const STATUS_LABELS: Record<JobStatus["status"], string> = {
+  queued: "Queued — waiting for a free worker…",
+  running: "Analyzing your code…",
+  completed: "Done!",
+  failed: "Something went wrong.",
+};
+
+export default function CodeInput() {
+  const [code, setCode] = useState("");
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [status, setStatus] = useState<JobStatus["status"] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const analyze = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    setStatus(null);
+    try {
+      const id = await submitAnalysis(code);
+      setJobId(id);
+      const finalStatus = await pollAnalysis(id, {
+        onUpdate: (s) => setStatus(s.status),
+      });
+      setStatus(finalStatus.status);
+      if (finalStatus.status === "failed") {
+        setError(finalStatus.error ?? "Unknown error");
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Unexpected error");
+    } finally {
+      setBusy(false);
+    }
+  }, [code]);
+
+  const topology = status === "completed" ? asTopology({ jobId: jobId!, status }) : null;
+
+  return (
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-10">
+      <header>
+        <h1 className="text-2xl font-semibold">Underhood</h1>
+        <p className="text-sm text-slate-400">
+          Paste code. Get a plain-language picture of what it does.
+        </p>
+      </header>
+
+      <textarea
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        rows={12}
+        spellCheck={false}
+        placeholder={"// Paste any code snippet here\nfunction main() {\n  console.log('hello');\n}"}
+        className="w-full rounded-lg border border-slate-700 bg-slate-900 p-4 font-mono text-sm outline-none focus:border-sky-500"
+      />
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={analyze}
+          disabled={busy || code.trim().length === 0}
+          className="rounded-lg bg-sky-600 px-5 py-2 font-medium hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {busy ? "Working…" : "Visualize"}
+        </button>
+        {status && <span className="text-sm text-slate-300">{STATUS_LABELS[status]}</span>}
+      </div>
+
+      {error && (
+        <p role="alert" className="rounded-lg border border-red-800 bg-red-950 p-3 text-sm text-red-300">
+          {error}
+        </p>
+      )}
+
+      {topology && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <h2 className="mb-2 text-sm font-medium text-slate-300">
+            Detected flow ({topology.nodes.length} steps)
+            {topology.detectedPatterns.length > 0 &&
+              ` · patterns: ${topology.detectedPatterns.join(", ")}`}
+          </h2>
+          {/* Placeholder listing; replaced by the 2D/3D renderers in T3.2/T3.3 */}
+          <ol className="list-decimal space-y-1 pl-5 text-sm">
+            {topology.nodes.map((n) => (
+              <li key={n.id}>
+                <span className="font-medium">{n.label}</span>{" "}
+                <span className="text-slate-400">— {n.plainDescription}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </section>
+  );
+}
