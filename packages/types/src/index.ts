@@ -13,7 +13,12 @@ export const NodeSchema = z.object({
     .string()
     .min(1)
     .describe("Jargon-free, 1-3 sentence explanation of what this node does, understandable by non-coders"),
-  metadata: z.record(z.any()).optional(),
+  // Typed values keep the generated JSON Schema OpenAI-strict compatible:
+  // z.any()/untyped records emit additionalProperties:{} which has no "type"
+  // and is rejected by structured outputs response_format validation.
+  metadata: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+    .optional(),
 });
 export type GraphNode = z.infer<typeof NodeSchema>;
 
