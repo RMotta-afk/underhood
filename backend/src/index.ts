@@ -31,13 +31,18 @@ async function initApi(): Promise<void> {
   const boss = await getBoss(e.DATABASE_URL);
   // Real pipeline executor: analyze -> generate -> validate/heal (G2 chain).
   // Imported lazily to keep boot light and avoid cycles in tests.
-  const [{ analyzeCode }, { createTopologyAgent, generateTopology }, { validateGraph }] =
+  const [{ analyzeCode }, { createTopologyAgent, generateTopology }, { validateGraph }, { createMastraWithObservability }] =
     await Promise.all([
       import("./workflow/steps/analyze-code"),
       import("./workflow/steps/generate-topology"),
       import("./workflow/steps/validate-graph"),
+      import("./observability/langfuse"),
     ]);
   const agent = createTopologyAgent();
+  const { tracingEnabled } = createMastraWithObservability(e, {
+    "topology-generator": agent,
+  });
+  console.log(`langfuse tracing ${tracingEnabled ? "enabled" : "disabled"}`);
   await startWorker({
     boss,
     pool,

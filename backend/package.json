@@ -5,6 +5,8 @@
   "type": "module",
   "dependencies": {
     "@mastra/core": "^1.61.0",
+    "@mastra/langfuse": "^1.5.0",
+    "@mastra/observability": "^1.17.1",
     "@mastra/pg": "^1.21.1",
     "@underhood/types": "workspace:*",
     "acorn": "^8.18.0",
