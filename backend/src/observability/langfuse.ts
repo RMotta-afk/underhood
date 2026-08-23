@@ -1,4 +1,5 @@
 import type { Agent } from "@mastra/core/agent";
+import type { MastraCompositeStore } from "@mastra/core/storage";
 import { Mastra } from "@mastra/core";
 import { Observability } from "@mastra/observability";
 import { LangfuseExporter } from "@mastra/langfuse";
@@ -20,7 +21,8 @@ export interface ObservabilityWiring {
  * that flow through every configured exporter (Langfuse when enabled). */
 export function createMastraWithObservability(
   env: Env,
-  agents?: Record<string, Agent>
+  agents?: Record<string, Agent>,
+  storage?: MastraCompositeStore
 ): ObservabilityWiring {
   const exporters = [];
 
@@ -36,6 +38,7 @@ export function createMastraWithObservability(
   }
 
   const mastra = new Mastra({
+    ...(storage ? { storage } : {}),
     ...(agents ? { agents } : {}),
     ...(exporters.length > 0
       ? {

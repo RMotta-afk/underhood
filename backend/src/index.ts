@@ -26,7 +26,7 @@ let initPromise: Promise<void> | null = null;
 async function initApi(): Promise<void> {
   const { loadEnv } = await import("./env");
   const e = loadEnv(); // fail-fast on invalid config
-  const { pool } = await wirePostgres(e.DATABASE_URL);
+  const { pool, store } = await wirePostgres(e.DATABASE_URL);
   await ensureAnalysisJobsTable(pool);
   const boss = await getBoss(e.DATABASE_URL);
   // Real pipeline executor: analyze -> generate -> validate/heal (G2 chain).
@@ -39,9 +39,11 @@ async function initApi(): Promise<void> {
       import("./observability/langfuse"),
     ]);
   const agent = createTopologyAgent();
-  const { tracingEnabled } = createMastraWithObservability(e, {
-    "topology-generator": agent,
-  });
+  const { tracingEnabled } = createMastraWithObservability(
+    e,
+    { "topology-generator": agent },
+    store
+  );
   console.log(`langfuse tracing ${tracingEnabled ? "enabled" : "disabled"}`);
   await startWorker({
     boss,
