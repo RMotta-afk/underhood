@@ -3,14 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@dagrejs/dagre": "^3.1.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@underhood/types": "workspace:*",
+    "@xyflow/react": "^12.11.3",
     "next": "^16.3.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3"
   },
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

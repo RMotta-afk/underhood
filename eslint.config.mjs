@@ -9,6 +9,7 @@ export default tseslint.config(
       "**/.next/**",
       "**/coverage/**",
       "eslint.config.mjs", // tooling file; not part of any tsconfig project
+      "**/postcss.config.mjs", // tooling file; not part of any tsconfig project
     ],
   },
   eslint.configs.recommended,
