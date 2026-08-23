@@ -18,6 +18,25 @@ describe("loadEnv", () => {
 
   test("fails fast when DATABASE_URL is missing", () => {
     expect(() => loadEnv({ OPENAI_API_KEY: "sk-test" })).toThrow(EnvValidationError);
+    // Empty-string placeholder counts as missing too (fail-fast preserved).
+    expect(() => loadEnv({ DATABASE_URL: "", OPENAI_API_KEY: "sk-test" })).toThrow(
+      EnvValidationError
+    );
+  });
+
+  test("empty-string placeholders for optional vars are treated as absent", () => {
+    const e = loadEnv({
+      ...validBase,
+      GROQ_API_KEY: "",
+      LANGFUSE_PUBLIC_KEY: "",
+      LANGFUSE_SECRET_KEY: "",
+      LANGFUSE_BASE_URL: "",
+      MODEL_BASE_URL: "",
+    });
+    expect(e.GROQ_API_KEY).toBeUndefined();
+    expect(e.LANGFUSE_PUBLIC_KEY).toBeUndefined();
+    expect(e.LANGFUSE_BASE_URL).toBeUndefined();
+    expect(e.tracingEnabled).toBe(false);
   });
 
   test("openai provider requires OPENAI_API_KEY", () => {

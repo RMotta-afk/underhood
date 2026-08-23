@@ -52,11 +52,16 @@ export class EnvValidationError extends Error {
   }
 }
 
-/** Parse and validate an env source. Throws EnvValidationError (fail-fast) on any problem. */
+/** Parse and validate an env source. Throws EnvValidationError (fail-fast) on any problem.
+ * Empty-string values are treated as absent so leftover `VAR=` placeholders
+ * from copying env.example never fail the boot for optional variables. */
 export function loadEnv(
   source: Record<string, string | undefined> = process.env
 ): Env {
-  const parsed = EnvSchema.safeParse(source);
+  const cleaned = Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== "")
+  );
+  const parsed = EnvSchema.safeParse(cleaned);
   if (!parsed.success) {
     throw new EnvValidationError(parsed.error.issues);
   }
