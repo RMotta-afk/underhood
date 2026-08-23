@@ -12,3 +12,4 @@ Chronological episodic memory lives in `log/`:
 | 2026-08-21 | [T2.3 Complete — validateGraphStep + selfHealBranch](log/2026-08-21-t2.3-validate-heal.md) |
 | 2026-08-21 | [T2.4 Complete + Goal 2 Complete — PostgreSQL Wiring](log/2026-08-21-t2.4-postgres-wiring-goal2-complete.md) |
 | 2026-08-21 | [Pipeline Hardening + Toolchain Alignment](log/2026-08-21-pipeline-hardening.md) |
+| 2026-08-21 | [T5.1 Complete — Async API + Worker Pool](log/2026-08-21-t5.1-async-api-worker-pool.md) |
