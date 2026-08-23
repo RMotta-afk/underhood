@@ -19,6 +19,6 @@
       "@underhood/types": ["./packages/types/src/index.ts"]
     }
   },
-  "include": ["packages/types/src/**/*.ts", "backend/src/**/*.ts", "scripts/**/*.ts"],
+  "include": ["packages/types/src/**/*.ts", "backend/src/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "e2e/**/*.ts", "playwright.config.ts"],
   "exclude": ["node_modules", "dist", ".next"]
 }
