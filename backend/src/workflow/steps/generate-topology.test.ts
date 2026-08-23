@@ -23,6 +23,17 @@ const fixtureAnalysis: StructuralAnalysis = {
   ],
   statementCount: 12,
   hasAsync: true,
+  flows: [
+    {
+      entity: "main",
+      steps: [
+        { kind: "call", label: "call loadConfig", callee: "loadConfig" },
+        { kind: "loop", label: "loop while attempt <= retries", condition: "attempt <= retries" },
+        { kind: "branch", label: "if (res.ok)", condition: "res.ok" },
+        { kind: "return", label: "return config" },
+      ],
+    },
+  ],
   normalizedSkeleton: "entities:function main,function loadConfig|branches:{...}",
 };
 
@@ -70,6 +81,19 @@ describe("generateTopology (T2.2)", () => {
     expect(prompt).toContain("main");
     expect(prompt).toContain("2 branch(es)");
     expect(prompt).toContain("asynchronous");
+  });
+
+  test("prompt serializes the control-flow outline as authoritative (T6.1)", () => {
+    const prompt = buildTopologyPrompt(fixtureAnalysis);
+    expect(prompt).toContain("authoritative for ORDER and SHAPE");
+    expect(prompt).toContain("loop -> branch");
+  });
+
+  test("instructions mandate branch fan-out, loop cycles, edge labels, callee links", () => {
+    expect(TOPOLOGY_INSTRUCTIONS).toContain("at least two outgoing edges");
+    expect(TOPOLOGY_INSTRUCTIONS).toContain("cycle");
+    expect(TOPOLOGY_INSTRUCTIONS).toContain("edge label field");
+    expect(TOPOLOGY_INSTRUCTIONS).toContain("callee's own node");
   });
 
   test("instructions enforce jargon-free descriptions and edge integrity", () => {

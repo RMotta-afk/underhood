@@ -15,6 +15,9 @@ export type EmbedFn = (text: string) => Promise<number[]>;
 export interface DedupOptions {
   modelId: string;
   threshold: number;
+  /** Rows from other pipeline versions are invisible to dedup so stale
+   * topologies (e.g. pre-fidelity lazy graphs) are never served. */
+  pipelineVersion: string;
 }
 
 export interface DedupResult {
@@ -123,15 +126,16 @@ export async function findSimilarTopology(
   pool: Pool,
   modelId: string,
   threshold: number,
-  embedding: number[]
+  embedding: number[],
+  pipelineVersion: string
 ): Promise<{ topology: GraphTopology; similarity: number } | null> {
   const result = await pool.query<{
     topology: unknown;
     embedding: number[];
   }>(
     `SELECT topology, embedding FROM graph_cache
-     WHERE embedding IS NOT NULL AND embedding_model = $1`,
-    [modelId]
+     WHERE embedding IS NOT NULL AND embedding_model = $1 AND pipeline_version = $2`,
+    [modelId, pipelineVersion]
   );
 
   let best: { topology: GraphTopology; similarity: number } | null = null;
@@ -169,7 +173,8 @@ export async function dedupOrRegister(
     pool,
     options.modelId,
     options.threshold,
-    embedding
+    embedding,
+    options.pipelineVersion
   );
   if (similar) {
     return { deduped: true, topology: similar.topology, similarity: similar.similarity };
@@ -186,7 +191,8 @@ export async function dedupOrRegister(
       embedding,
       createdAt: new Date(),
     },
-    options.modelId
+    options.modelId,
+    options.pipelineVersion
   );
   return { deduped: false, topology, similarity: 1 };
 }

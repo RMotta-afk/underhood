@@ -31,12 +31,19 @@ async function ensureGraphCacheTable(pool: Pool): Promise<void> {
       topology JSONB NOT NULL,
       embedding JSONB,
       embedding_model TEXT,
+      pipeline_version TEXT NOT NULL DEFAULT '0-legacy',
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
-  // Migration-safe addition for existing volumes.
+  // Migration-safe additions for existing volumes.
   await pool.query(
     `ALTER TABLE graph_cache ADD COLUMN IF NOT EXISTS embedding_model TEXT`
+  );
+  // T6.2 — rows produced by an older pipeline version must never be served
+  // (e.g. pre-fidelity lazy topologies); existing volumes default to a
+  // legacy marker that the live version never reads.
+  await pool.query(
+    `ALTER TABLE graph_cache ADD COLUMN IF NOT EXISTS pipeline_version TEXT NOT NULL DEFAULT '0-legacy'`
   );
 }
 
@@ -58,23 +65,26 @@ export function toCacheRow(entry: GraphCache): {
 export async function saveTopologyCache(
   pool: Pool,
   entry: GraphCache,
-  embeddingModel?: string
+  embeddingModel?: string,
+  pipelineVersion = "0-legacy"
 ): Promise<void> {
   const row = toCacheRow(entry);
   await pool.query(
-    `INSERT INTO graph_cache (code_hash, language, topology, embedding, embedding_model, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO graph_cache (code_hash, language, topology, embedding, embedding_model, pipeline_version, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (code_hash) DO UPDATE
        SET language = EXCLUDED.language,
            topology = EXCLUDED.topology,
            embedding = EXCLUDED.embedding,
-           embedding_model = EXCLUDED.embedding_model`,
+           embedding_model = EXCLUDED.embedding_model,
+           pipeline_version = EXCLUDED.pipeline_version`,
     [
       row.codeHash,
       row.language,
       JSON.stringify(row.topology),
       row.embedding ? JSON.stringify(row.embedding) : null,
       embeddingModel ?? null,
+      pipelineVersion,
       entry.createdAt,
     ]
   );
@@ -82,11 +92,12 @@ export async function saveTopologyCache(
 
 export async function getCachedTopology(
   pool: Pool,
-  codeHash: string
+  codeHash: string,
+  pipelineVersion = "0-legacy"
 ): Promise<GraphTopology | null> {
   const result = await pool.query<{ topology: unknown }>(
-    `SELECT topology FROM graph_cache WHERE code_hash = $1`,
-    [codeHash]
+    `SELECT topology FROM graph_cache WHERE code_hash = $1 AND pipeline_version = $2`,
+    [codeHash, pipelineVersion]
   );
   if (result.rows.length === 0) return null;
   return GraphTopologySchema.parse(result.rows[0]!.topology);

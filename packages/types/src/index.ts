@@ -26,6 +26,9 @@ export const EdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1), // Must map to a valid NodeSchema id
   target: z.string().min(1), // Must map to a valid NodeSchema id
+  // Decision-edge outcome label ("yes"/"no", case names). Empty for
+  // unconditional flow edges so renderers can omit it cleanly.
+  label: z.string().default(""),
   animated: z.boolean().default(true),
 });
 export type GraphEdge = z.infer<typeof EdgeSchema>;
@@ -34,11 +37,13 @@ export type GraphEdge = z.infer<typeof EdgeSchema>;
 // OpenAI strict mode requires every property to appear in "required";
 // .default()/preprocess wrappers drop or obscure that. This variant reuses
 // the SAME field schemas (single source of truth) but keeps `animated` a
-// plain required boolean for generation; the default is applied afterwards
-// via withEdgeDefaults() before the public GraphTopologySchema parse.
+// plain required boolean and `label` a plain required string for generation;
+// defaults are applied afterwards via withEdgeDefaults() before the public
+// GraphTopologySchema parse.
 const GenerationEdgeSchema = z.object({
   ...EdgeSchema.shape,
   animated: z.boolean(),
+  label: z.string(),
 });
 
 export const TopologyGenerationSchema = z.object({
@@ -54,11 +59,15 @@ export function withEdgeDefaults(value: unknown): unknown {
   if (!Array.isArray(edges)) return value;
   return {
     ...(value as Record<string, unknown>),
-    edges: edges.map((edge) =>
-      typeof edge === "object" && edge !== null && !("animated" in edge)
-        ? { ...(edge as Record<string, unknown>), animated: true }
-        : edge
-    ),
+    edges: edges.map((edge) => {
+      if (typeof edge !== "object" || edge === null) return edge;
+      const e = edge as Record<string, unknown>;
+      return {
+        ...e,
+        animated: "animated" in e ? e.animated : true,
+        label: typeof e.label === "string" ? e.label : "",
+      };
+    }),
   };
 }
 

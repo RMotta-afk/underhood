@@ -29,7 +29,7 @@ const topologyFixture: GraphTopology = {
     { id: "n1", label: "loadConfig", type: "process", plainDescription: "Reads the config file." },
     { id: "n2", label: "main", type: "entry", plainDescription: "Runs the program." },
   ],
-  edges: [{ id: "e1", source: "n2", target: "n1", animated: true }],
+  edges: [{ id: "e1", source: "n2", target: "n1", animated: true, label: "" }],
   detectedPatterns: [],
 };
 
@@ -66,29 +66,32 @@ describeDb("entity-aware dedup (T5.3 integration)", () => {
     await pool?.end();
   });
 
-  test("canonical representation is identical for reordered equivalents", () => {
-    const a = canonicalRepresentation(analyzeCode(SNIPPET_A));
-    const b = canonicalRepresentation(analyzeCode(SNIPPET_B));
+  test("canonical representation is identical for reordered equivalents", async () => {
+    const a = canonicalRepresentation(await analyzeCode(SNIPPET_A));
+    const b = canonicalRepresentation(await analyzeCode(SNIPPET_B));
     expect(a).toBe(b);
     expect(a).toContain("loadConfig"); // entity names preserved for ludic labels
     expect(a).toContain("main");
   });
 
   test("first registration stores embedding; equivalent snippet dedupes to it", async () => {
-    const analysisA = analyzeCode(SNIPPET_A);
+    const analysisA = await analyzeCode(SNIPPET_A);
     const hashA = createHash("sha256").update(`${SNIPPET_A}:${randomUUID()}`).digest("hex");
+    // Unique per run so the suite stays idempotent against a persistent volume;
+    // also proves rows from other pipeline versions are invisible to dedup.
+    const pipelineVersion = `test-${randomUUID()}`;
 
     const first = await dedupOrRegister(
       pool!, mockEmbed, analysisA, topologyFixture, hashA, "typescript",
-      { modelId: runModelId, threshold: 0.95 }
+      { modelId: runModelId, threshold: 0.95, pipelineVersion }
     );
     expect(first.deduped).toBe(false);
 
-    const analysisB = analyzeCode(SNIPPET_B);
+    const analysisB = await analyzeCode(SNIPPET_B);
     const hashB = createHash("sha256").update(`${SNIPPET_B}:${randomUUID()}`).digest("hex");
     const second = await dedupOrRegister(
       pool!, mockEmbed, analysisB, topologyFixture, hashB, "typescript",
-      { modelId: runModelId, threshold: 0.95 }
+      { modelId: runModelId, threshold: 0.95, pipelineVersion }
     );
     expect(second.deduped).toBe(true);
     expect(second.similarity).toBeGreaterThanOrEqual(0.95);

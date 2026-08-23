@@ -15,9 +15,9 @@ const topology: GraphTopology = {
     { id: "n4", label: "Done", type: "terminal", plainDescription: "Finishes." },
   ],
   edges: [
-    { id: "e1", source: "n1", target: "n2", animated: true },
-    { id: "e2", source: "n2", target: "n3", animated: true },
-    { id: "e3", source: "n3", target: "n4", animated: false },
+    { id: "e1", source: "n1", target: "n2", animated: true, label: "" },
+    { id: "e2", source: "n2", target: "n3", animated: true, label: "" },
+    { id: "e3", source: "n3", target: "n4", animated: false, label: "yes" },
   ],
   detectedPatterns: ["Retry Loop"],
 };
@@ -52,9 +52,11 @@ describe("buildTopologyView (T3.2)", () => {
 
   test("edges preserve animation flags and drop dangling references defensively", () => {
     expect(view.edges.map((e) => e.animated)).toEqual([true, true, false]);
+    // Decision-edge labels flow through to the renderer (T6.1).
+    expect(view.edges[2]?.label).toBe("yes");
     const dangling = buildTopologyView({
       ...topology,
-      edges: [{ id: "bad", source: "ghost", target: "n4", animated: true }],
+      edges: [{ id: "bad", source: "ghost", target: "n4", animated: true, label: "" }],
     });
     expect(dangling.edges.length).toBe(0);
   });

@@ -1,5 +1,6 @@
 import { createScorer } from "@mastra/core/evals";
 import { GraphTopologySchema } from "@underhood/types";
+import type { StructuralAnalysis } from "../steps/analyze-code";
 
 // T4.2 — deterministic topology-quality scorers (SDD §6.3, AGENT.md @sdet).
 // Built on Mastra's native scorer API (createScorer) but fully deterministic:
@@ -19,14 +20,72 @@ function parseTopology(output: unknown) {
   return GraphTopologySchema.safeParse(output);
 }
 
+/** Directed cycle detection for loop-fidelity checks (eval-side mirror). */
+function hasCycle(
+  nodeIds: string[],
+  edges: Array<{ source: string; target: string }>
+): boolean {
+  const adj = new Map<string, string[]>();
+  for (const id of nodeIds) adj.set(id, []);
+  for (const e of edges) adj.get(e.source)?.push(e.target);
+  const color = new Map<string, number>(nodeIds.map((id) => [id, 0]));
+  for (const root of nodeIds) {
+    if (color.get(root) !== 0) continue;
+    const stack: Array<{ node: string; i: number }> = [{ node: root, i: 0 }];
+    color.set(root, 1);
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1]!;
+      const neighbors = adj.get(frame.node) ?? [];
+      if (frame.i < neighbors.length) {
+        const next = neighbors[frame.i++]!;
+        if (color.get(next) === 1) return true;
+        if (color.get(next) === 0) {
+          color.set(next, 1);
+          stack.push({ node: next, i: 0 });
+        }
+      } else {
+        color.set(frame.node, 2);
+        stack.pop();
+      }
+    }
+  }
+  return false;
+}
+
+/** Fidelity fraction: how faithfully the graph mirrors the declared
+ * control flow (branch presence, decision fan-out, loop cycles). */
+function fidelityScore(
+  topology: { nodes: Array<{ id: string; type: string }>; edges: Array<{ source: string; target: string }> },
+  analysis: StructuralAnalysis
+): number | null {
+  const branchNodes = topology.nodes.filter((n) => n.type === "branch");
+  const outDegree = new Map<string, number>();
+  for (const e of topology.edges) {
+    outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+  }
+  const checks: boolean[] = [];
+  if (analysis.branches.length > 0) {
+    checks.push(branchNodes.length > 0);
+  }
+  if (branchNodes.length > 0) {
+    checks.push(branchNodes.every((b) => (outDegree.get(b.id) ?? 0) >= 2));
+  }
+  if (analysis.branches.some((b) => b.kind === "loop")) {
+    checks.push(hasCycle(topology.nodes.map((n) => n.id), topology.edges));
+  }
+  if (checks.length === 0) return null; // nothing declared -> no fidelity signal
+  return checks.filter(Boolean).length / checks.length;
+}
+
 /**
  * Structural soundness: entry + terminal presence, referential integrity,
- * and full connectivity of the flow. 1.0 only for a logically complete graph.
+ * full connectivity, and — when an analysis is supplied — control-flow
+ * fidelity. 1.0 only for a logically complete, faithful graph.
  */
 export const topologyStructureScorer = createScorer({
   id: STRUCTURE_SCORER_ID,
   description:
-    "Scores whether the generated topology is a logical, referentially intact execution flow.",
+    "Scores whether the generated topology is a logical, referentially intact execution flow that faithfully represents the code's branches and loops.",
 })
   .generateScore(({ run }) => {
     const parsed = parseTopology(run.output);
@@ -52,6 +111,17 @@ export const topologyStructureScorer = createScorer({
       if (parsed.data.nodes.every((n) => connected.has(n.id))) score += 0.25;
     } else if (parsed.data.nodes.length === 1) {
       score += 0.25; // standalone single-node topology is legitimate
+    }
+
+    // Fidelity component replaces up to half the base score when an
+    // analysis declares conditionals/loops.
+    const analysis = (run.input as { analysis?: StructuralAnalysis }).analysis;
+    if (analysis) {
+      const fidelity = fidelityScore(parsed.data, analysis);
+      if (fidelity !== null) {
+        const base = score / 2;
+        return base + 0.5 * fidelity;
+      }
     }
     return score;
   });
@@ -83,12 +153,16 @@ export interface TopologyScoreResult {
   reason?: string;
 }
 
-/** Run every registered scorer against one candidate topology output. */
-export async function scoreTopology(topology: unknown): Promise<TopologyScoreResult[]> {
+/** Run every registered scorer against one candidate topology output.
+ * Passing the structural analysis enables fidelity-aware scoring. */
+export async function scoreTopology(
+  topology: unknown,
+  analysis?: StructuralAnalysis
+): Promise<TopologyScoreResult[]> {
   const scorers = [topologyStructureScorer, topologyPlainLanguageScorer];
   const results: TopologyScoreResult[] = [];
   for (const scorer of scorers) {
-    const run = await scorer.run({ input: {}, output: topology });
+    const run = await scorer.run({ input: { analysis }, output: topology });
     results.push({ scorerId: scorer.id, score: run.score });
   }
   return results;

@@ -24,7 +24,7 @@ const topologyFixture: GraphTopology = {
     { id: "n1", label: "Start", type: "entry", plainDescription: "Begins." },
     { id: "n2", label: "End", type: "terminal", plainDescription: "Finishes." },
   ],
-  edges: [{ id: "e1", source: "n1", target: "n2", animated: true }],
+  edges: [{ id: "e1", source: "n1", target: "n2", animated: true, label: "" }],
   detectedPatterns: [],
 };
 

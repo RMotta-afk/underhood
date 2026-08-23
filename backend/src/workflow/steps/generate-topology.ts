@@ -62,11 +62,16 @@ export const TOPOLOGY_INSTRUCTIONS = [
   "- Every node MUST include plainDescription: a jargon-free, 1-3 sentence explanation a product manager could understand.",
   "- Node types: entry (start), process (computation), io (input/output like files, network, console), branch (decisions/loops), terminal (end).",
   "- Edges must reference existing node ids via source/target.",
+  "- FIDELITY: every conditional in the control-flow outline MUST become a branch node with at least two outgoing edges, one per alternative path.",
+  "- FIDELITY: every loop MUST form a cycle in the graph — an edge must lead back into the loop body. Never flatten loops into a single straight-line pass.",
+  "- Label the outgoing edges of each decision with its outcome using the edge label field (e.g. \"yes\"/\"no\", or the matching case).",
+  "- A call from one extracted function to another MUST connect to the callee's own node.",
+  "- Each distinct completion path (including early returns) MUST reach a terminal node.",
   "- detectedPatterns lists engineering patterns you recognized (e.g., Retry Loop, State Machine).",
 ].join("\n");
 
 export function buildTopologyPrompt(analysis: StructuralAnalysis): string {
-  return [
+  const lines = [
     "Analyze this extracted code structure and produce the execution topology.",
     "",
     "Structural analysis (deterministic AST extraction):",
@@ -76,11 +81,23 @@ export function buildTopologyPrompt(analysis: StructuralAnalysis): string {
     `- Start from entry point(s): ${analysis.entryPoints.join(", ")}.`,
     "- Represent each meaningful entity as a process node using its real name as the label.",
     `- Model the ${analysis.branches.length} branch(es) and ${analysis.ioOperations.length} IO operation(s) faithfully.`,
+  ];
+  if (analysis.flows && analysis.flows.length > 0) {
+    lines.push(
+      "- The per-entity control-flow outline below is authoritative for ORDER and SHAPE:",
+      ...analysis.flows.map(
+        (f) =>
+          `  * ${f.entity}: ${f.steps.map((s) => s.kind).join(" -> ")}. Conditions in the outline MUST appear as branch nodes with labeled alternative edges.`
+      )
+    );
+  }
+  lines.push(
     analysis.hasAsync
       ? "- The code is asynchronous; reflect awaits in the flow order."
       : "- The code is synchronous.",
-    "- End with terminal node(s) for every completion path.",
-  ].join("\n");
+    "- End with terminal node(s) for every completion path."
+  );
+  return lines.join("\n");
 }
 
 export function createTopologyAgent(): Agent {

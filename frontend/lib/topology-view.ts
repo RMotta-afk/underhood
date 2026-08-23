@@ -77,6 +77,7 @@ export function buildTopologyView(topology: GraphTopology): TopologyView {
       source: edge.source,
       target: edge.target,
       animated: edge.animated,
+      label: edge.label || undefined,
       style: { stroke: "#38bdf8", strokeWidth: 1.5 },
     }));
 

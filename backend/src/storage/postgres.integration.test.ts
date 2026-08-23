@@ -32,7 +32,7 @@ const topologyFixture: GraphTopology = {
       plainDescription: "The program finishes.",
     },
   ],
-  edges: [{ id: "e1", source: "n1", target: "n2", animated: true }],
+  edges: [{ id: "e1", source: "n1", target: "n2", animated: true, label: "" }],
   detectedPatterns: ["Retry Loop"],
 };
 
@@ -47,7 +47,7 @@ describeDb("Postgres wiring (T2.4 integration)", () => {
     await wiring?.pool.end();
   });
 
-  test("graph cache round-trips by SHA-256 codeHash", async () => {
+  test("graph cache round-trips by SHA-256 codeHash, scoped to pipeline version", async () => {
     // Unique per run so repeated suites stay idempotent against a persistent volume.
     const codeHash = sha256(randomUUID());
     const entry = {
@@ -66,6 +66,11 @@ describeDb("Postgres wiring (T2.4 integration)", () => {
     // Upsert semantics on identical hash
     await saveTopologyCache(wiring!.pool, entry);
     expect(await getCachedTopology(wiring!.pool, codeHash)).toEqual(topologyFixture);
+
+    // T6.2: rows from a different pipeline version are invisible
+    expect(
+      await getCachedTopology(wiring!.pool, codeHash, "some-other-version")
+    ).toBeNull();
   });
 
   test("@mastra/pg init created its durable-storage tables in the same instance", async () => {

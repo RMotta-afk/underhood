@@ -39,6 +39,9 @@ function scriptedGenerator(
 function topologyFrom(analysis: StructuralAnalysis): GraphTopology {
   // Deterministic stand-in for the LLM: builds a well-formed chain from the
   // real analysis output so the pipeline contract is exercised end-to-end.
+  // Faithful per T6.1: declared conditionals become a branch node with TWO
+  // outgoing paths (main completion + alternative completion).
+  const hasBranches = analysis.branches.length > 0;
   const nodes = [
     {
       id: "entry",
@@ -52,7 +55,7 @@ function topologyFrom(analysis: StructuralAnalysis): GraphTopology {
       type: "process" as const,
       plainDescription: `${entity.name} runs its logic.`,
     })),
-    ...(analysis.branches.length > 0
+    ...(hasBranches
       ? [{
           id: "branch",
           label: "Decision",
@@ -66,19 +69,41 @@ function topologyFrom(analysis: StructuralAnalysis): GraphTopology {
       type: "terminal" as const,
       plainDescription: "The program finishes.",
     },
+    ...(hasBranches
+      ? [{
+          id: "alt-done",
+          label: "Alternative end",
+          type: "terminal" as const,
+          plainDescription: "The program finishes through the other path.",
+        }]
+      : []),
   ];
-  const edges = nodes.slice(1).map((node, i) => ({
-    id: `e${i}`,
-    source: i === 0 ? nodes[0]!.id : nodes[i]!.id,
-    target: node.id,
-    animated: true,
-  }));
+  const chainNodes = nodes.filter((node) => node.id !== "alt-done");
+  const edges = [
+    ...chainNodes.slice(1).map((node, i) => ({
+      id: `e${i}`,
+      source: i === 0 ? chainNodes[0]!.id : chainNodes[i]!.id,
+      target: node.id,
+      animated: true,
+      label: "",
+    })),
+    // Decision alternative path so the branch shows both outcomes.
+    ...(hasBranches
+      ? [{
+          id: "e-alt",
+          source: "branch",
+          target: "alt-done",
+          animated: false,
+          label: "no",
+        }]
+      : []),
+  ];
   return { nodes, edges, detectedPatterns: [] };
 }
 
 describe("workflow composition (T4.1)", () => {
   test("analyze -> generate -> validate produces a schema-valid topology", async () => {
-    const analysis = analyzeCode(SNIPPET);
+    const analysis = await analyzeCode(SNIPPET);
     expect(analysis.entryPoints.length).toBeGreaterThan(0);
 
     const candidate = topologyFrom(analysis);
@@ -95,7 +120,7 @@ describe("workflow composition (T4.1)", () => {
   });
 
   test("heal retry injects the exact validation errors into the repair prompt", async () => {
-    const analysis = analyzeCode(SNIPPET);
+    const analysis = await analyzeCode(SNIPPET);
     const broken = topologyFrom(analysis);
     (broken as { edges: Array<{ target: string }> }).edges[0]!.target = "ghost";
 
@@ -112,7 +137,7 @@ describe("workflow composition (T4.1)", () => {
   });
 
   test("pipeline fails deterministically when healing is exhausted", async () => {
-    const analysis = analyzeCode(SNIPPET);
+    const analysis = await analyzeCode(SNIPPET);
     const alwaysBroken = topologyFrom(analysis);
     (alwaysBroken as { edges: Array<{ target: string }> }).edges[0]!.target = "ghost";
 

@@ -1,4 +1,5 @@
 import type { Agent } from "@mastra/core/agent";
+import type { Workflow } from "@mastra/core/workflows";
 import type { MastraCompositeStore } from "@mastra/core/storage";
 import { Mastra } from "@mastra/core";
 import { Observability } from "@mastra/observability";
@@ -17,12 +18,14 @@ export interface ObservabilityWiring {
   tracingEnabled: boolean;
 }
 
-/** Build the app Mastra instance; agents registered here emit traced spans
- * that flow through every configured exporter (Langfuse when enabled). */
+/** Build the app Mastra instance; agents and workflows registered here emit
+ * traced spans that flow through every configured exporter (Langfuse when
+ * enabled), and workflow run snapshots persist to the shared Mastra storage. */
 export function createMastraWithObservability(
   env: Env,
   agents?: Record<string, Agent>,
-  storage?: MastraCompositeStore
+  storage?: MastraCompositeStore,
+  workflows?: Record<string, Workflow>
 ): ObservabilityWiring {
   const exporters = [];
 
@@ -42,6 +45,7 @@ export function createMastraWithObservability(
   const mastra = new Mastra({
     ...(storage ? { storage } : {}),
     ...(agents ? { agents } : {}),
+    ...(workflows ? { workflows } : {}),
     ...(exporters.length > 0
       ? {
           observability: new Observability({

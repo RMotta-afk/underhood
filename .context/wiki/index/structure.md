@@ -11,6 +11,7 @@ Underhood — code/workflow visualization platform. Parses a single snippet/file
 - **G5 Async/Caching/Observability: COMPLETE** (pg-boss worker pool, prompt cache, embedding dedup — now wired into the live executor — Langfuse)
 - **G4 Quality Gates: COMPLETE** (acceptance suites, Mastra scorers + Postgres-persisted evals, Docker/Playwright smoke — terminal live-model run GREEN)
 - **Mission: COMPLETE** (terminal signal satisfied 2026-08-23; optional follow-ups only)
+- **G6 Fidelity Follow-up: T6.1 + T6.2 + T6.3 COMPLETE** (2026-08-23, user-reported defect: binary search rendered as entry->terminal. T6.1: CFG outline extraction + fidelity-gated heal loop + fidelity-aware scorers. T6.2: pipeline-versioned graph_cache/dedup (stale pre-fidelity rows unservable) + prompt cache wired into live generation. T6.3: topologyWorkflow now the LIVE production path — registered on the Mastra instance, executor starts durable runs (snapshots in mastra_workflow_snapshot), generate step fidelity-gated — see `.context/wiki/log/2026-08-23-t6.3-workflow-wiring.md`)
 
 ## Structure Map
 | Path | Purpose | Status |
