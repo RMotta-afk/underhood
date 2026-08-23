@@ -21,6 +21,7 @@ export default function CodeInput() {
   const [code, setCode] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<JobStatus["status"] | null>(null);
+  const [finalStatus, setFinalStatus] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -28,15 +29,17 @@ export default function CodeInput() {
     setError(null);
     setBusy(true);
     setStatus(null);
+    setFinalStatus(null);
     try {
       const id = await submitAnalysis(code);
       setJobId(id);
-      const finalStatus = await pollAnalysis(id, {
+      const result = await pollAnalysis(id, {
         onUpdate: (s) => setStatus(s.status),
       });
-      setStatus(finalStatus.status);
-      if (finalStatus.status === "failed") {
-        setError(finalStatus.error ?? "Unknown error");
+      setStatus(result.status);
+      setFinalStatus(result);
+      if (result.status === "failed") {
+        setError(result.error ?? "Unknown error");
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unexpected error");
@@ -45,7 +48,10 @@ export default function CodeInput() {
     }
   }, [code]);
 
-  const topology = status === "completed" ? asTopology({ jobId: jobId!, status }) : null;
+  const topology =
+    finalStatus?.status === "completed" && jobId
+      ? asTopology(finalStatus)
+      : null;
 
   return (
     <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-10">
