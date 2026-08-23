@@ -7,7 +7,7 @@ import {
 import type { TopologyGenerator } from "./generate-topology";
 import type { StructuralAnalysis } from "./analyze-code";
 import type { GraphTopology } from "@underhood/types";
-import type { GraphTopologySchema } from "@underhood/types";
+import type { TopologyGenerationSchema } from "@underhood/types";
 
 const validTopology = {
   nodes: [
@@ -26,7 +26,7 @@ function countingGenerator(
     getCalls: () => calls,
     async generate(
       _messages: Array<{ role: "system" | "user"; content: string }>,
-      _options: { structuredOutput: { schema: typeof GraphTopologySchema } }
+      _options: { structuredOutput: { schema: typeof TopologyGenerationSchema } }
     ) {
       return { object: outputs[Math.min(calls++, outputs.length - 1)] };
     },

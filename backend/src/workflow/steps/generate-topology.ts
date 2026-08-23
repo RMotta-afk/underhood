@@ -1,6 +1,10 @@
 import { Agent } from "@mastra/core/agent";
 import type { GraphTopology } from "@underhood/types";
-import { GraphTopologySchema } from "@underhood/types";
+import {
+  GraphTopologySchema,
+  TopologyGenerationSchema,
+  withEdgeDefaults,
+} from "@underhood/types";
 import { loadEnv, type Env } from "../../env";
 import type { StructuralAnalysis } from "./analyze-code";
 
@@ -17,7 +21,7 @@ export interface TopologyGenerationResult {
 export interface TopologyGenerator {
   generate(
     messages: Array<{ role: "system" | "user"; content: string }>,
-    options: { structuredOutput: { schema: typeof GraphTopologySchema } }
+    options: { structuredOutput: { schema: typeof TopologyGenerationSchema } }
   ): Promise<TopologyGenerationResult>;
 }
 
@@ -88,7 +92,9 @@ export function createTopologyAgent(): Agent {
   });
 }
 
-/** Run generation with strict structured output; parse defensively against the shared schema. */
+/** Run generation with strict structured output against the LLM wire
+ * contract (TopologyGenerationSchema), then apply edge defaults and parse
+ * defensively against the public GraphTopologySchema as the backstop. */
 export async function generateTopology(
   analysis: StructuralAnalysis,
   generatorOverride?: TopologyGenerator
@@ -97,10 +103,10 @@ export async function generateTopology(
     (generatorOverride as unknown as Agent | undefined) ?? createTopologyAgent();
   const response = await agent.generate(
     [{ role: "user", content: buildTopologyPrompt(analysis) }],
-    { structuredOutput: { schema: GraphTopologySchema } }
+    { structuredOutput: { schema: TopologyGenerationSchema } }
   );
   // Strict validation: never trust the wire format even with structured output enabled.
-  return GraphTopologySchema.parse(response.object);
+  return GraphTopologySchema.parse(withEdgeDefaults(response.object));
 }
 
 // Re-exported so validateGraphStep (T2.3) can share the same contract source.

@@ -26,12 +26,41 @@ export const EdgeSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1), // Must map to a valid NodeSchema id
   target: z.string().min(1), // Must map to a valid NodeSchema id
-  // Preprocess-based default instead of .default(): OpenAI structured outputs
-  // require every property to appear in "required"; .default() would omit it
-  // from the emitted JSON Schema and fail response_format validation.
-  animated: z.preprocess((v) => v ?? true, z.boolean()),
+  animated: z.boolean().default(true),
 });
 export type GraphEdge = z.infer<typeof EdgeSchema>;
+
+// --- LLM wire contract (structured outputs) ---
+// OpenAI strict mode requires every property to appear in "required";
+// .default()/preprocess wrappers drop or obscure that. This variant reuses
+// the SAME field schemas (single source of truth) but keeps `animated` a
+// plain required boolean for generation; the default is applied afterwards
+// via withEdgeDefaults() before the public GraphTopologySchema parse.
+const GenerationEdgeSchema = z.object({
+  ...EdgeSchema.shape,
+  animated: z.boolean(),
+});
+
+export const TopologyGenerationSchema = z.object({
+  nodes: z.array(NodeSchema),
+  edges: z.array(GenerationEdgeSchema),
+  detectedPatterns: z.array(z.string()),
+});
+
+/** Apply edge-level defaults to a raw generated topology payload. */
+export function withEdgeDefaults(value: unknown): unknown {
+  if (typeof value !== "object" || value === null) return value;
+  const { edges } = value as { edges?: unknown };
+  if (!Array.isArray(edges)) return value;
+  return {
+    ...(value as Record<string, unknown>),
+    edges: edges.map((edge) =>
+      typeof edge === "object" && edge !== null && !("animated" in edge)
+        ? { ...(edge as Record<string, unknown>), animated: true }
+        : edge
+    ),
+  };
+}
 
 export const GraphTopologySchema = z.object({
   nodes: z.array(NodeSchema),

@@ -1,4 +1,8 @@
-import { GraphTopologySchema } from "@underhood/types";
+import {
+  GraphTopologySchema,
+  TopologyGenerationSchema,
+  withEdgeDefaults,
+} from "@underhood/types";
 import type { GraphTopology } from "@underhood/types";
 import type { StructuralAnalysis } from "./analyze-code";
 import { buildTopologyPrompt, type TopologyGenerator } from "./generate-topology";
@@ -103,9 +107,9 @@ async function requestGeneration(
     });
   }
   const response = await generator.generate(messages, {
-    structuredOutput: { schema: GraphTopologySchema },
+    structuredOutput: { schema: TopologyGenerationSchema },
   });
-  return response.object;
+  return withEdgeDefaults(response.object);
 }
 
 /**
