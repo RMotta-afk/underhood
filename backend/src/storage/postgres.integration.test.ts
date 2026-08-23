@@ -9,9 +9,10 @@ import {
 import { ANALYSIS_QUEUE, getBoss, resetBoss } from "../queue/boss";
 
 // Integration suite: requires the compose database.
-// Run with TEST_DATABASE_URL (or DATABASE_URL) pointing at Postgres; skipped otherwise.
-const DB =
-  process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? null;
+// Opt-in via TEST_DATABASE_URL only — ambient DATABASE_URL (e.g. from .env,
+// auto-loaded by bun) may point at a remote/production db and must never be
+// hijacked by host-side tests. Skipped when unset.
+const DB = process.env.TEST_DATABASE_URL ?? null;
 const describeDb = DB ? describe : describe.skip;
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");

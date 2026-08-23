@@ -11,8 +11,9 @@ import { startWorker } from "../queue/worker";
 import { wirePostgres } from "../storage/postgres";
 
 // Integration suite for T5.1: async API + worker pool against live compose db.
-// Skips when TEST_DATABASE_URL / DATABASE_URL is absent.
-const DB = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? null;
+// Opt-in via TEST_DATABASE_URL only — ambient DATABASE_URL (auto-loaded by bun
+// from .env) must never be hijacked by host-side tests. Skips when unset.
+const DB = process.env.TEST_DATABASE_URL ?? null;
 const describeDb = DB ? describe : describe.skip;
 
 const CONCURRENCY = 2;

@@ -31,7 +31,9 @@ export function createMastraWithObservability(
       new LangfuseExporter({
         publicKey: env.LANGFUSE_PUBLIC_KEY!,
         secretKey: env.LANGFUSE_SECRET_KEY!,
-        ...(env.LANGFUSE_BASE_URL ? { baseUrl: env.LANGFUSE_BASE_URL } : {}),
+        // The OTLP exporter rejects a relative path-only URL, so an unset
+        // LANGFUSE_BASE_URL must still yield an absolute Langfuse Cloud host.
+        baseUrl: env.LANGFUSE_BASE_URL ?? "https://cloud.langfuse.com",
         environment: env.NODE_ENV,
       })
     );

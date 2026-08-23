@@ -8,8 +8,9 @@ import {
   ensurePromptCacheTable,
 } from "./prompt-cache";
 
-// Integration suite for T5.2; requires compose db, skips otherwise.
-const DB = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? null;
+// Integration suite for T5.2; requires compose db. Opt-in via TEST_DATABASE_URL
+// only (ambient DATABASE_URL may point at a remote/production db); skips otherwise.
+const DB = process.env.TEST_DATABASE_URL ?? null;
 const describeDb = DB ? describe : describe.skip;
 
 const PROMPT = `Analyze this structure and produce the execution topology. ${randomUUID()}`;
