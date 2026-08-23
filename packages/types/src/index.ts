@@ -39,7 +39,9 @@ export const GraphCacheSchema = z.object({
   language: z.string(),
   topologyPayload: GraphTopologySchema,
   embedding: z.array(z.number()).optional(),
-  createdAt: z.date(),
+  // coerce: entries may arrive over JSON boundaries (API/job payloads) where
+  // dates are ISO strings; raw z.date() would reject them.
+  createdAt: z.coerce.date(),
 });
 export type GraphCache = z.infer<typeof GraphCacheSchema>;
 

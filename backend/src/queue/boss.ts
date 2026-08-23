@@ -30,8 +30,16 @@ export function getBoss(connectionString: string): Promise<PgBoss> {
   return startPromise;
 }
 
-/** Test helper: forget the singleton so each integration run starts clean. */
+/** Test helper: stop and forget the singleton so each integration run starts
+ * clean without leaking the previous instance's timers/pollers. */
 export function resetBoss(): void {
+  if (startPromise) {
+    void startPromise
+      .then((b) => b.stop())
+      .catch(() => {
+        /* already stopped */
+      });
+  }
   bossInstance = null;
   startPromise = null;
 }

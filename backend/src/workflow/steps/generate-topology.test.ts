@@ -54,15 +54,14 @@ describe("generateTopology (T2.2)", () => {
     expect(result.nodes[0]?.plainDescription).toContain("Starts");
   });
 
-  test("rejects output missing plainDescription even if generator misbehaves", async () => {
+  test("rejects output missing plainDescription even if generator misbehaves", () => {
     const invalid = {
       ...validFixture,
       nodes: [{ id: "n1", label: "main", type: "entry" }],
     };
     // structuredOutput would normally enforce this; the defensive parse is the backstop.
-    await expect(
-      generateTopology(invalid as never, mockGenerator(invalid))
-    ).rejects.toThrow();
+    const promise = generateTopology(fixtureAnalysis, mockGenerator(invalid));
+    expect(promise).rejects.toThrow();
   });
 
   test("prompt carries entity names and plain-language mandate", () => {
@@ -80,18 +79,16 @@ describe("generateTopology (T2.2)", () => {
 
   test("model resolution is env-driven only (provider abstraction)", () => {
     const openaiDefault = resolveModel({
-      OPENAI_API_KEY: "sk",
       MODEL_PROVIDER: "openai",
       MODEL_ID: "gpt-4o",
-    } as NodeJS.ProcessEnv);
+    });
     expect(openaiDefault.model).toBe("openai/gpt-4o");
 
     const groqCustom = resolveModel({
-      GROQ_API_KEY: "gsk",
       MODEL_PROVIDER: "groq",
       MODEL_ID: "llama-3.3-70b-versatile",
       MODEL_BASE_URL: "https://api.groq.com/openai/v1",
-    } as unknown as NodeJS.ProcessEnv);
+    });
     expect(groqCustom.model).toEqual({
       id: "custom/llama-3.3-70b-versatile",
       url: "https://api.groq.com/openai/v1",

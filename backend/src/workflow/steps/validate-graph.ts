@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { GraphTopologySchema } from "@underhood/types";
 import type { GraphTopology } from "@underhood/types";
 import type { StructuralAnalysis } from "./analyze-code";

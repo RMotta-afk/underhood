@@ -1,8 +1,8 @@
 import { Agent } from "@mastra/core/agent";
-import { z } from "zod";
-import type { StructuralAnalysis } from "./analyze-code";
-import { GraphTopologySchema } from "@underhood/types";
 import type { GraphTopology } from "@underhood/types";
+import { GraphTopologySchema } from "@underhood/types";
+import { loadEnv, type Env } from "../../env";
+import type { StructuralAnalysis } from "./analyze-code";
 
 // T2.2 — generateTopologyStep: LLM topology generation (SDD §4.1 step 2).
 // Provider-agnostic per SDD §0: the model is resolved purely from env config.
@@ -21,18 +21,20 @@ export interface TopologyGenerator {
   ): Promise<TopologyGenerationResult>;
 }
 
-/** Resolve the model from env only (SDD §0 provider abstraction). */
-export function resolveModel(envSource?: NodeJS.ProcessEnv): {
-  model: string | { id: `${string}/${string}`; url: string };
-} {
-  const env = envSource ?? process.env;
-  const provider = env.MODEL_PROVIDER ?? "openai";
-  const modelId = env.MODEL_ID ?? "gpt-4o";
-  const baseUrl = env.MODEL_BASE_URL;
-  if (baseUrl) {
-    return { model: { id: `custom/${modelId}`, url: baseUrl } };
+/** Resolve the model from validated env only (SDD §0 provider abstraction).
+ * Accepts an already-validated env slice (tests) or runs fail-fast loadEnv(). */
+export function resolveModel(
+  validated?: Pick<Env, "MODEL_PROVIDER" | "MODEL_ID" | "MODEL_BASE_URL">
+): { model: string | { id: `${string}/${string}`; url: string } } {
+  const e =
+    validated ??
+    loadEnv({
+      DATABASE_URL: process.env.DATABASE_URL ?? "postgres://localhost/underhood",
+    });
+  if (e.MODEL_BASE_URL) {
+    return { model: { id: `custom/${e.MODEL_ID}`, url: e.MODEL_BASE_URL } };
   }
-  return { model: `${provider}/${modelId}` };
+  return { model: `${e.MODEL_PROVIDER}/${e.MODEL_ID}` };
 }
 
 export const TOPOLOGY_INSTRUCTIONS = [
@@ -68,7 +70,7 @@ export function createTopologyAgent(): Agent {
     name: "Topology Generator",
     instructions: TOPOLOGY_INSTRUCTIONS,
     ...resolveModel(),
-  }) as unknown as Agent;
+  });
 }
 
 /** Run generation with strict structured output; parse defensively against the shared schema. */

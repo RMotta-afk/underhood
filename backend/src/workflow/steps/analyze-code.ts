@@ -56,17 +56,37 @@ const IO_CALLEES: Array<{ pattern: RegExp; kind: IoOperation["kind"] }> = [
 ];
 
 function calleeName(callee: CallExpression["callee"]): string {
-  if (callee.type === "Identifier") return callee.name;
-  return sourceText(callee);
+  // Unwrap wrappers so `await db.query()` / `(0, fetch)(...)` still classify.
+  let inner = callee as Node;
+  while (
+    inner.type === "AwaitExpression" ||
+    inner.type === "UnaryExpression" ||
+    inner.type === "ChainExpression"
+  ) {
+    inner = (inner as unknown as { argument: Node }).argument;
+  }
+  if (inner.type === "Identifier") return (inner as unknown as { name: string }).name;
+  return sourceText(inner);
 }
 
 function sourceText(node: Node): string {
-  const anyNode = node as unknown as { name?: string; object?: Node; property?: Node };
+  const anyNode = node as unknown as {
+    name?: string;
+    object?: Node;
+    property?: Node;
+  };
   if (anyNode.name) return anyNode.name;
   if (anyNode.object && anyNode.property) {
     const obj = anyNode.object as unknown as { name?: string };
-    const prop = anyNode.property as unknown as { name?: string; value?: string };
-    return `${obj.name ?? "?"}.${String(prop.name ?? prop.value ?? "?")}`;
+    const prop = anyNode.property as unknown as { name?: string; value?: unknown };
+    // Handles both dot access (prop.name) and computed access (prop.value),
+    // including numeric/string literals like cache[0] or headers["x-key"].
+    const propName =
+      prop.name ??
+      (typeof prop.value === "string" || typeof prop.value === "number"
+        ? String(prop.value)
+        : undefined);
+    if (obj.name && propName) return `${obj.name}.${propName}`;
   }
   return "?";
 }
@@ -90,7 +110,7 @@ function walk(node: Node, visit: (n: Node) => void): void {
 /** Strip TypeScript syntax via Bun's native transpiler, then parse with acorn. */
 export function analyzeCode(rawCode: string): StructuralAnalysis {
   let language: "typescript" | "javascript" = "javascript";
-  let js = rawCode;
+  let js: string;
   try {
     // Plain-JS loader first: TS-only syntax fails here, giving accurate detection.
     js = new Bun.Transpiler({ loader: "js" }).transformSync(rawCode);
@@ -116,16 +136,16 @@ export function analyzeCode(rawCode: string): StructuralAnalysis {
     if (n.type !== "ImportDeclaration") return;
     const decl = n as unknown as {
       source: { value: string };
-      specifiers: Array<{ local?: { name?: string }; imported?: { name?: string } }>;
+      specifiers: Array<{ local: { name: string } }>;
     };
-    const src: string = decl.source?.value ?? "";
+    const src: string = decl.source.value;
     let kind: IoOperation["kind"] | null = null;
     if (/^(node:)?fs(\.promises)?(\/|$)/.test(src)) kind = "fs";
     else if (/^(node:)?(http|https)(\/|$)/.test(src) || src.includes("undici")) kind = "fetch";
     else if (/^(node:)?child_process/.test(src)) kind = "process";
     if (!kind) return;
-    for (const spec of decl.specifiers ?? []) {
-      if (spec.local?.name) importedIoKinds.set(spec.local.name, kind);
+    for (const spec of decl.specifiers) {
+      importedIoKinds.set(spec.local.name, kind);
     }
   });
 
@@ -133,10 +153,8 @@ export function analyzeCode(rawCode: string): StructuralAnalysis {
   const branches: Branch[] = [];
   const ioOperations: IoOperation[] = [];
   const entryPoints = new Set<string>();
-  let statementCount = 0;
   let hasAsync = false;
-
-  for (const statement of program.body) statementCount++;
+  const statementCount = program.body.length;
 
   walk(program, (n) => {
     switch (n.type) {
@@ -165,7 +183,7 @@ export function analyzeCode(rawCode: string): StructuralAnalysis {
             id.name
               ? [id.name]
               : ((id.elements ?? [])
-                  .map((e) => e?.name)
+                  .map((e) => e.name)
                   .filter((n): n is string => typeof n === "string"));
           for (const name of names) {
             entities.push({ name, kind: "variable" });

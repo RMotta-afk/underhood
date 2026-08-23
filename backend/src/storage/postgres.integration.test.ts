@@ -48,7 +48,7 @@ describeDb("Postgres wiring (T2.4 integration)", () => {
 
   test("graph cache round-trips by SHA-256 codeHash", async () => {
     // Unique per run so repeated suites stay idempotent against a persistent volume.
-    const codeHash = sha256(`const x = ${crypto.randomUUID()};`);
+    const codeHash = sha256(randomUUID());
     const entry = {
       codeHash,
       language: "typescript",
@@ -83,6 +83,6 @@ describeDb("Postgres wiring (T2.4 integration)", () => {
       batchSize: 1,
     });
     expect(jobs.length).toBe(1);
-    expect(jobs[0]?.data?.jobId).toBe("test-job");
+    expect(jobs[0]!.data.jobId).toBe("test-job");
   });
 });

@@ -6,8 +6,8 @@ import {
 } from "./validate-graph";
 import type { TopologyGenerator } from "./generate-topology";
 import type { StructuralAnalysis } from "./analyze-code";
-import { GraphTopologySchema } from "@underhood/types";
 import type { GraphTopology } from "@underhood/types";
+import type { GraphTopologySchema } from "@underhood/types";
 
 const validTopology = {
   nodes: [
@@ -31,7 +31,7 @@ function countingGenerator(
       return { object: outputs[Math.min(calls++, outputs.length - 1)] };
     },
   };
-  return generator as unknown as TopologyGenerator & { getCalls(): number };
+  return generator;
 }
 
 const analysis: StructuralAnalysis = {
