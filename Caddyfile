@@ -1,7 +1,17 @@
 :80 {
-	reverse_proxy app:3000 {
-		health_uri /healthz
-		health_interval 5s
-		health_timeout 3s
+	# Backend API + health probe.
+	handle /analyses* {
+		reverse_proxy app:3000 {
+			health_uri /healthz
+			health_interval 5s
+			health_timeout 3s
+		}
+	}
+	handle /healthz {
+		reverse_proxy app:3000
+	}
+	# Everything else: Next.js frontend.
+	handle {
+		reverse_proxy app:3001
 	}
 }

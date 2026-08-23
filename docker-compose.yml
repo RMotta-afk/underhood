@@ -33,6 +33,7 @@ services:
         condition: service_healthy
     expose:
       - "3000"
+      - "3001"
     restart: unless-stopped
 
   # Local parity for Railway's native load balancer: front N replicas (`--scale app=N`).

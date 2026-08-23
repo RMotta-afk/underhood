@@ -16,6 +16,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "start": "next start -p 3001",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
