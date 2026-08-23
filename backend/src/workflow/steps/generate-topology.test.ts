@@ -94,4 +94,30 @@ describe("generateTopology (T2.2)", () => {
       url: "https://api.groq.com/openai/v1",
     });
   });
+
+  test("bare fallback resolves from the FULL environment (regression: partial source dropped API keys)", () => {
+    const prevProvider = process.env.MODEL_PROVIDER;
+    const prevKey = process.env.OPENAI_API_KEY;
+    const prevDb = process.env.DATABASE_URL;
+    process.env.MODEL_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.DATABASE_URL = "postgres://localhost/underhood";
+    try {
+      // Before the fix, resolveModel() fed loadEnv a DATABASE_URL-only source,
+      // so OPENAI_API_KEY was invisible and this threw EnvValidationError.
+      // Shape depends on whether ambient env carries MODEL_BASE_URL.
+      const model = resolveModel().model;
+      const ok =
+        model === "openai/gpt-4o" ||
+        (typeof model === "object" && model.id === "custom/gpt-4o");
+      expect(ok).toBe(true);
+    } finally {
+      if (prevProvider === undefined) delete process.env.MODEL_PROVIDER;
+      else process.env.MODEL_PROVIDER = prevProvider;
+      if (prevKey === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = prevKey;
+      if (prevDb === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = prevDb;
+    }
+  });
 });

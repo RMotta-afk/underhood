@@ -22,15 +22,13 @@ export interface TopologyGenerator {
 }
 
 /** Resolve the model from validated env only (SDD §0 provider abstraction).
- * Accepts an already-validated env slice (tests) or runs fail-fast loadEnv(). */
+ * Accepts an already-validated env slice (tests) or runs fail-fast loadEnv()
+ * against the FULL ambient environment — a partial source would drop
+ * OPENAI_API_KEY/GROQ_API_KEY and fail the provider refinement. */
 export function resolveModel(
   validated?: Pick<Env, "MODEL_PROVIDER" | "MODEL_ID" | "MODEL_BASE_URL">
 ): { model: string | { id: `${string}/${string}`; url: string } } {
-  const e =
-    validated ??
-    loadEnv({
-      DATABASE_URL: process.env.DATABASE_URL ?? "postgres://localhost/underhood",
-    });
+  const e = validated ?? loadEnv();
   if (e.MODEL_BASE_URL) {
     return { model: { id: `custom/${e.MODEL_ID}`, url: e.MODEL_BASE_URL } };
   }
