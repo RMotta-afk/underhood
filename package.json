@@ -20,7 +20,8 @@
     "check:secrets": "bun run scripts/check-secrets.ts",
     "dev": "bun run --filter '*' dev",
     "build": "bun run --filter '*' build",
-    "test": "bun test"
+    "test": "bun test",
+    "evals": "bun run tests/evals/topology.eval.ts"
   },
   "lint-staged": {
     "*.ts": [
