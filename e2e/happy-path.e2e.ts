@@ -1,10 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
 
 // T4.3 — terminal acceptance (SDD §7.2 / mission terminal signal):
-// two clients submit simultaneously -> both poll to completed -> 2D renders
-// -> toggle to 3D renders; a duplicate submission resolves via the
-// dedup/cache path. Requires the compose stack up (`docker compose up
-// --build`) with model credentials in .env.
+// two clients submit simultaneously -> both poll to completed -> 2D renders;
+// a duplicate submission resolves via the dedup/cache path. Requires the
+// compose stack up (`docker compose up --build`) with model credentials in .env.
 
 const SNIPPET = `
 function loadConfig(path) { return readFile(path); }
@@ -55,7 +54,7 @@ async function waitForRenderedGraph(page: Page): Promise<void> {
 }
 
 test.describe("underhood happy path", () => {
-  test("two clients submit simultaneously and render in 2D and 3D", async ({ browser }) => {
+  test("two clients submit simultaneously and render their graphs", async ({ browser }) => {
     const clientA = await browser.newContext();
     const clientB = await browser.newContext();
     const pageA = await clientA.newPage();
@@ -80,15 +79,7 @@ test.describe("underhood happy path", () => {
     expect(nodeCount).toBeGreaterThanOrEqual(2);
     expect(await pageA.locator(".react-flow__edge").count()).toBeGreaterThanOrEqual(1);
 
-    // The only user-facing mode switch: 2D -> 3D.
-    await pageA.getByRole("radio", { name: "3D" }).click();
-    await expect(
-      pageA.locator("canvas").first()
-    ).toBeVisible({ timeout: 30_000 });
-
     // Hover surfaces the plain-language toast (SDD §0).
-    await pageA.getByRole("radio", { name: "2D" }).click();
-    await expect(pageA.locator(".react-flow__node").first()).toBeVisible();
     await pageA.locator(".react-flow__node").first().hover();
     await expect(pageA.getByText(/plain|program|starts/i).first()).toBeVisible();
 

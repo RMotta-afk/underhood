@@ -6,7 +6,7 @@ Underhood turns a source-code snippet into a visual, plain-language execution-fl
 
 ```
                  ┌──────────────────────────────┐
-   raw code ───▶ │  analyze → generate → heal   │ ───▶ 2D flowchart / 3D graph
+   raw code ───▶ │  analyze → generate → heal   │ ───▶ 2D flowchart
                  └──────────────────────────────┘
 ```
 
@@ -22,7 +22,7 @@ The pipeline is a durable [Mastra](https://mastra.ai) workflow with a fidelity-g
 2. **Generate (LLM)** — an LLM (routed provider-agnostically through Mastra's model router) converts the structural analysis into a JSON graph topology under a strict Zod schema. Every node must include a `plainDescription`.
 3. **Validate & heal (deterministic)** — the generated graph is validated against the schema *and* against fidelity rules derived from step 1: every declared conditional must become a branch node with alternatives, every loop must form a real cycle, every call between functions must connect. Lazy straight-line graphs are rejected and regenerated with the exact validation errors injected (max 2 retries), then the run fails loudly instead of returning a degenerate graph.
 4. **Cache & dedup** — topologies are cached by code hash (per pipeline version), and structurally similar snippets are matched via entity-aware embeddings so near-identical code skips the LLM entirely.
-5. **Render** — the frontend lays out the graph client-side (dagre) and renders it as an interactive **2D flowchart** (`@xyflow/react`) or a **3D force graph** (WebGL).
+5. **Render** — the frontend lays out the graph client-side (dagre) and renders it as an interactive **2D flowchart** (`@xyflow/react`).
 
 Jobs run asynchronously through **pg-boss** (PostgreSQL-backed queue) with a bounded worker pool, so the API stays responsive under load and the backend scales horizontally behind a reverse proxy.
 
@@ -109,7 +109,7 @@ backend/            Bun API server + pg-boss worker pool
   src/services/       Prompt cache + embedding-based snippet dedup
   src/observability/  Langfuse tracing
 frontend/           Next.js (App Router) UI
-  components/graph/   2D (xyflow) and 3D (WebGL) renderers
+  components/graph/   2D flowchart renderer (xyflow)
   lib/                Typed API client + client-side dagre layout
 packages/types/     Shared Zod schemas (single source of truth, no manual type duplication)
 docs/sdd/           Software design document
