@@ -19,6 +19,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Secrets firewall scan (all tracked files)
+        run: bun run scripts/check-secrets.ts --all
+
+      - name: Lint (strict type-checked ESLint)
+        run: bun run lint
+
       - name: Typecheck (strict static analysis)
         run: bun run typecheck
 

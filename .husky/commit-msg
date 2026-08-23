@@ -1,0 +1,7 @@
+# Enforce conventional commit prefixes (versioning discipline).
+pattern='^(feature|fix|chore|docs|test|refactor|perf|ci|build|revert): .+'
+if ! grep -Eq "$pattern" "$1"; then
+  echo "COMMIT BLOCKED: message must match '$pattern'"
+  echo "Got: $(head -n1 "$1")"
+  exit 1
+fi

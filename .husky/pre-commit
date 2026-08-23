@@ -1,3 +1,5 @@
-# Underhood pre-commit gate: strict static analysis + Zod schema validation.
-# Runs the full typecheck and test suite before any code is staged (AGENT.md).
-bun run typecheck && bun test
+# Underhood pre-commit gate (hardened):
+# 1. Secrets firewall scan on staged additions (AGENT.md mandate)
+# 2. lint-staged -> ESLint strictTypeChecked on staged .ts files
+# 3. Full-repo strict typecheck + test suite
+bun run check:secrets && bunx lint-staged && bun run typecheck && bun test
