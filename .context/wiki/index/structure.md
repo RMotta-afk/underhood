@@ -1,5 +1,5 @@
 # Wiki Index — Structural State
-**Last refreshed:** 2026-08-23 (post G3 closure: T3.2/T3.3/T3.4 task cards transitioned to [DONE] with acceptance logs)
+**Last refreshed:** 2026-08-23 (terminal acceptance: live-model E2E + evals green)
 
 ## Project
 Underhood — code/workflow visualization platform. Parses a single snippet/file, extracts semantic topology (with plain-language node descriptions), serves many users concurrently via a PostgreSQL-backed async job pipeline (pg-boss), caches prompts and dedups similar snippets via entity-aware embeddings, observes costs/tokens/iterations in Langfuse Cloud, and renders as 2D or 3D.
@@ -9,8 +9,8 @@ Underhood — code/workflow visualization platform. Parses a single snippet/file
 - **G2 Mastra Pipeline: COMPLETE**
 - **G3 Visualization Frontend: COMPLETE** (T3.1 input/poll client, T3.2 2D Dagre renderer, T3.3 3D force-graph renderer, T3.4 2D/3D toggle)
 - **G5 Async/Caching/Observability: COMPLETE** (pg-boss worker pool, prompt cache, embedding dedup — now wired into the live executor — Langfuse)
-- **G4 Quality Gates: COMPLETE** (acceptance suites, Mastra scorers + Postgres-persisted evals, Docker/Playwright smoke)
-- **Next:** operator-keyed full E2E pass; optional CI workflow under .github/workflows
+- **G4 Quality Gates: COMPLETE** (acceptance suites, Mastra scorers + Postgres-persisted evals, Docker/Playwright smoke — terminal live-model run GREEN)
+- **Mission: COMPLETE** (terminal signal satisfied 2026-08-23; optional follow-ups only)
 
 ## Structure Map
 | Path | Purpose | Status |
@@ -28,12 +28,12 @@ Underhood — code/workflow visualization platform. Parses a single snippet/file
 ## Agent Positions
 | Agent | Current Assignment |
 |---|---|
-| @principal_ai | Mission acceptance review (terminal signal) |
+| @principal_ai | Standby (mission complete) |
 | @architect | Standby |
-| @devops | Optional: CI workflow (.github/workflows) |
+| @devops | Optional: verify CI workflow green-run on push |
 | @backend_engineer | Standby |
 | @frontend_engineer | Standby |
-| @sdet | Operator-keyed E2E pass when .env is provisioned |
+| @sdet | Standby (optional: Langfuse-keyed tracing verification when keys land) |
 
 ## Critical Path
 Implementation DAG fully discharged; only operator-gated acceptance remains.

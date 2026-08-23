@@ -19,3 +19,4 @@ Chronological episodic memory lives in `log/`:
 | 2026-08-23 | [T3.2 Complete — 2D Dagre Renderer](log/2026-08-23-t3.2-2d-renderer.md) |
 | 2026-08-23 | [T3.3 Complete — 3D Force-Graph Renderer](log/2026-08-23-t3.3-3d-renderer.md) |
 | 2026-08-23 | [T3.4 + Goal 3 Complete — 2D/3D Mode Toggle](log/2026-08-23-t3.4-mode-toggle-goal3-complete.md) |
+| 2026-08-23 | [T4.3 Terminal Acceptance — Live E2E + Evals Green](log/2026-08-23-t4.3-terminal-e2e.md) |
