@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { JobStatus } from "@underhood/types";
+import Graph2D from "./graph/graph-2d";
 import {
   ApiError,
   asTopology,
@@ -82,21 +83,15 @@ export default function CodeInput() {
       )}
 
       {topology && (
-        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-          <h2 className="mb-2 text-sm font-medium text-slate-300">
-            Detected flow ({topology.nodes.length} steps)
-            {topology.detectedPatterns.length > 0 &&
-              ` · patterns: ${topology.detectedPatterns.join(", ")}`}
-          </h2>
-          {/* Placeholder listing; replaced by the 2D/3D renderers in T3.2/T3.3 */}
-          <ol className="list-decimal space-y-1 pl-5 text-sm">
-            {topology.nodes.map((n) => (
-              <li key={n.id}>
-                <span className="font-medium">{n.label}</span>{" "}
-                <span className="text-slate-400">— {n.plainDescription}</span>
-              </li>
-            ))}
-          </ol>
+        <div className="flex flex-col gap-3">
+          {topology.detectedPatterns.length > 0 && (
+            <p className="text-sm text-slate-400">
+              Detected patterns:{" "}
+              <span className="text-sky-300">{topology.detectedPatterns.join(", ")}</span>
+            </p>
+          )}
+          {/* 2D renderer (T3.2); the 2D/3D toggle arrives in T3.4 */}
+          <Graph2D topology={topology} />
         </div>
       )}
     </section>
