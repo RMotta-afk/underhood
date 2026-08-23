@@ -28,7 +28,7 @@ const topologyFixture: GraphTopology = {
 };
 
 describeDb("Async analysis pipeline (T5.1 integration)", () => {
-  let wiring: Awaited<ReturnType<typeof wirePostgres>>;
+  let wiring: Awaited<ReturnType<typeof wirePostgres>> | undefined;
   const observedStatuses = new Set<string>();
 
   beforeAll(async () => {
@@ -53,7 +53,7 @@ describeDb("Async analysis pipeline (T5.1 integration)", () => {
   });
 
   afterAll(async () => {
-    await wiring.pool.end();
+    await wiring?.pool.end();
   });
 
   let active = 0;
@@ -66,7 +66,7 @@ describeDb("Async analysis pipeline (T5.1 integration)", () => {
     const boss = await getBoss(DB!);
     const submitted = await Promise.all(
       Array.from({ length: TOTAL_JOBS }, () =>
-        createAnalysisJob(wiring.pool, boss, "function main() { console.log('hi'); }")
+        createAnalysisJob(wiring!.pool, boss, "function main() { console.log('hi'); }")
       )
     );
     expect(submitted.length).toBe(TOTAL_JOBS);
@@ -80,7 +80,7 @@ describeDb("Async analysis pipeline (T5.1 integration)", () => {
       await new Promise((r) => setTimeout(r, 100));
       terminal = 0;
       for (const { jobId } of submitted) {
-        const status = await getAnalysisJob(wiring.pool, jobId);
+        const status = await getAnalysisJob(wiring!.pool, jobId);
         if (!status) continue;
         observedStatuses.add(status.status);
         if (status.status === "completed" || status.status === "failed") terminal++;
@@ -90,7 +90,7 @@ describeDb("Async analysis pipeline (T5.1 integration)", () => {
 
     // Every completed job carries schema-valid topology; none failed.
     for (const { jobId } of submitted) {
-      const status = await getAnalysisJob(wiring.pool, jobId);
+      const status = await getAnalysisJob(wiring!.pool, jobId);
       expect(status).not.toBeNull();
       const parsed = JobStatusSchema.parse(status);
       expect(parsed.status).toBe("completed");
@@ -106,7 +106,7 @@ describeDb("Async analysis pipeline (T5.1 integration)", () => {
   );
 
   test("GET returns null for unknown jobId", async () => {
-    const missing = await getAnalysisJob(wiring.pool, "00000000-0000-4000-8000-000000000000");
+    const missing = await getAnalysisJob(wiring!.pool, "00000000-0000-4000-8000-000000000000");
     expect(missing).toBeNull();
   });
 });

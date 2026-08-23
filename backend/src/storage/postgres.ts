@@ -30,9 +30,14 @@ async function ensureGraphCacheTable(pool: Pool): Promise<void> {
       language TEXT NOT NULL,
       topology JSONB NOT NULL,
       embedding JSONB,
+      embedding_model TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
+  // Migration-safe addition for existing volumes.
+  await pool.query(
+    `ALTER TABLE graph_cache ADD COLUMN IF NOT EXISTS embedding_model TEXT`
+  );
 }
 
 export function toCacheRow(entry: GraphCache): {
@@ -52,21 +57,24 @@ export function toCacheRow(entry: GraphCache): {
 
 export async function saveTopologyCache(
   pool: Pool,
-  entry: GraphCache
+  entry: GraphCache,
+  embeddingModel?: string
 ): Promise<void> {
   const row = toCacheRow(entry);
   await pool.query(
-    `INSERT INTO graph_cache (code_hash, language, topology, embedding, created_at)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO graph_cache (code_hash, language, topology, embedding, embedding_model, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (code_hash) DO UPDATE
        SET language = EXCLUDED.language,
            topology = EXCLUDED.topology,
-           embedding = EXCLUDED.embedding`,
+           embedding = EXCLUDED.embedding,
+           embedding_model = EXCLUDED.embedding_model`,
     [
       row.codeHash,
       row.language,
       JSON.stringify(row.topology),
       row.embedding ? JSON.stringify(row.embedding) : null,
+      embeddingModel ?? null,
       entry.createdAt,
     ]
   );

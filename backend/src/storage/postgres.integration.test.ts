@@ -36,14 +36,14 @@ const topologyFixture: GraphTopology = {
 };
 
 describeDb("Postgres wiring (T2.4 integration)", () => {
-  let wiring: Awaited<ReturnType<typeof wirePostgres>>;
+  let wiring: Awaited<ReturnType<typeof wirePostgres>> | undefined;
 
   beforeAll(async () => {
     wiring = await wirePostgres(DB!);
   });
 
   afterAll(async () => {
-    await wiring.pool.end();
+    await wiring?.pool.end();
   });
 
   test("graph cache round-trips by SHA-256 codeHash", async () => {
@@ -56,19 +56,19 @@ describeDb("Postgres wiring (T2.4 integration)", () => {
       createdAt: new Date(),
     };
 
-    expect(await getCachedTopology(wiring.pool, codeHash)).toBeNull();
+    expect(await getCachedTopology(wiring!.pool, codeHash)).toBeNull();
 
-    await saveTopologyCache(wiring.pool, entry);
-    const cached = await getCachedTopology(wiring.pool, codeHash);
+    await saveTopologyCache(wiring!.pool, entry);
+    const cached = await getCachedTopology(wiring!.pool, codeHash);
     expect(cached).toEqual(topologyFixture);
 
     // Upsert semantics on identical hash
-    await saveTopologyCache(wiring.pool, entry);
-    expect(await getCachedTopology(wiring.pool, codeHash)).toEqual(topologyFixture);
+    await saveTopologyCache(wiring!.pool, entry);
+    expect(await getCachedTopology(wiring!.pool, codeHash)).toEqual(topologyFixture);
   });
 
   test("@mastra/pg init created its durable-storage tables in the same instance", async () => {
-    const result = await wiring.pool.query<{ table_name: string }>(
+    const result = await wiring!.pool.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_name LIKE 'mastra%'`
     );
