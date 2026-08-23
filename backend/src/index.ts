@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 
@@ -28,8 +29,12 @@ async function initApi(): Promise<void> {
   const e = loadEnv(); // fail-fast on invalid config
   const { pool, store } = await wirePostgres(e.DATABASE_URL);
   await ensureAnalysisJobsTable(pool);
+  const { ensureEmbeddingCacheTable } = await import("./services/dedup");
+  await ensureEmbeddingCacheTable(pool);
   const boss = await getBoss(e.DATABASE_URL);
-  // Real pipeline executor: analyze -> generate -> validate/heal (G2 chain).
+  // Real pipeline executor: analyze -> (cache) -> generate -> validate/heal ->
+  // dedup/register (SDD §6.1/§6.2). Cache and dedup hits skip or replace LLM
+  // generation; every stored topology lands in the single graph_cache table.
   // Imported lazily to keep boot light and avoid cycles in tests.
   const [{ analyzeCode }, { createTopologyAgent, generateTopology }, { validateGraph }, { createMastraWithObservability }] =
     await Promise.all([
@@ -38,6 +43,8 @@ async function initApi(): Promise<void> {
       import("./workflow/steps/validate-graph"),
       import("./observability/langfuse"),
     ]);
+  const { dedupOrRegister } = await import("./services/dedup");
+  const { getCachedTopology } = await import("./storage/postgres");
   const agent = createTopologyAgent();
   const { tracingEnabled } = createMastraWithObservability(
     e,
@@ -45,18 +52,47 @@ async function initApi(): Promise<void> {
     store
   );
   console.log(`langfuse tracing ${tracingEnabled ? "enabled" : "disabled"}`);
+
+  // Provider-routed embeddings (SDD §6.2) through Mastra's model router —
+  // no provider SDK imported here.
+  const { ModelRouterEmbeddingModel } = await import("@mastra/core/llm");
+  const embeddingModel = new ModelRouterEmbeddingModel(`openai/${e.EMBEDDING_MODEL}`);
+  const embed = async (text: string): Promise<number[]> => {
+    const { embeddings } = await embeddingModel.doEmbed({ values: [text] });
+    const vector = embeddings[0];
+    if (!vector) throw new Error("embedding provider returned no vector");
+    return vector;
+  };
+
   await startWorker({
     boss,
     pool,
     concurrency: e.WORKER_CONCURRENCY,
     execute: async (rawCode) => {
       const analysis = analyzeCode(rawCode);
+      const codeHash = createHash("sha256").update(rawCode).digest("hex");
+
+      // Exact-match cache hit: identical snippet skips the LLM entirely.
+      const cached = await getCachedTopology(pool, codeHash);
+      if (cached) return cached;
+
       const candidate = await generateTopology(analysis, agent as never);
       const validation = validateGraph(candidate);
       if (!validation.valid) {
         throw new Error(`generated topology failed validation: ${validation.errors.join("; ")}`);
       }
-      return candidate;
+      // Similarity dedup above SIMILARITY_THRESHOLD returns the stored
+      // topology; otherwise this snippet is registered with its embedding.
+      const result = await dedupOrRegister(
+        pool,
+        embed,
+        analysis,
+        candidate,
+        codeHash,
+        analysis.language,
+        { modelId: e.EMBEDDING_MODEL, threshold: e.SIMILARITY_THRESHOLD }
+      );
+      return result.topology;
     },
   });
   api = { pool, boss };
