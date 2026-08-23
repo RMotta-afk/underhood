@@ -14,11 +14,11 @@
     "resolveJsonModule": true,
     "jsx": "preserve",
     "noEmit": true,
-    "baseUrl": ".",
+    "types": ["bun"],
     "paths": {
       "@underhood/types": ["./packages/types/src/index.ts"]
     }
   },
-  "include": ["packages/types/src/**/*.ts", "backend/src/**/*.ts", "frontend/**/*.ts", "frontend/**/*.tsx"],
+  "include": ["packages/types/src/**/*.ts", "backend/src/**/*.ts", "scripts/**/*.ts", "frontend/**/*.ts", "frontend/**/*.tsx"],
   "exclude": ["node_modules", "dist", ".next"]
 }

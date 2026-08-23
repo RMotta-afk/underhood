@@ -1,0 +1,7 @@
+{
+  // Pin editors to the workspace TypeScript so squiggles match CI/pre-commit exactly
+  // (prevents TS7-in-editor vs 5.9-in-CLI drift).
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "eslint.useFlatConfig": true
+}
