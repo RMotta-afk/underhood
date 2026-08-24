@@ -14,6 +14,20 @@ Underhood turns a source-code snippet into a visual, plain-language execution-fl
 
 Reading code is the hard part — for product managers reviewing an algorithm, juniors onboarding into a codebase, or anyone auditing a snippet they found. Underhood answers one question visually: **"what does this code actually do when it runs?"** — not a UML diagram of the type structure, but the real control flow: branches, loops, I/O, calls, and exits, each explained in plain English on hover.
 
+## Features
+
+- **Paste → visualize** — drop a snippet in the UI, hit Visualize, and get an interactive 2D execution flowchart (`@xyflow/react` + client-side dagre layout).
+- **Plain-language nodes** — every step carries a jargon-free `plainDescription` shown on hover; non-coders can follow the flow without reading the source.
+- **Real control flow** — branches fan out with alternatives, loops form real cycles, I/O and calls are first-class node types (`entry` / `process` / `io` / `branch` / `terminal`), and class methods group into containers.
+- **Detected patterns** — completed runs surface high-level patterns (e.g. retry loops) alongside the graph.
+- **Multi-language parsing** — JS/TS via acorn; Python, Java, C/C++, Go, Rust, C#, Ruby, and PHP via tree-sitter. Unparseable input fails the job with a clear error.
+- **Fidelity-gated AI pipeline** — deterministic AST analysis → LLM topology generation → schema + fidelity validation with up to 2 heal retries; lazy straight-line graphs are rejected.
+- **Async job API** — `POST /analyses` + poll `GET /analyses/:id` backed by **pg-boss** (PostgreSQL queue) and a bounded worker pool.
+- **Cache & dedup** — exact topologies cached by code hash (per pipeline version); entity-aware embeddings skip the LLM for near-identical snippets.
+- **Provider-agnostic models** — OpenAI, Groq, or any OpenAI-compatible endpoint via env (`MODEL_PROVIDER` / `MODEL_ID` / `MODEL_BASE_URL`).
+- **Docker-first & scalable** — `docker compose up --build` runs Postgres + app + Caddy; scale app replicas horizontally behind the proxy.
+- **Observability** — optional [Langfuse](https://langfuse.com) tracing of LLM calls, tokens, cost, and workflow spans.
+
 ## How it works
 
 The pipeline is a durable [Mastra](https://mastra.ai) workflow with a fidelity-gated generate/validate/heal loop:
