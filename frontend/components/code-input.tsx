@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import type { JobStatus } from "@underhood/types";
 import GraphView from "./graph-view";
 import {
@@ -24,8 +24,15 @@ export default function CodeInput() {
   const [finalStatus, setFinalStatus] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const controllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => controllerRef.current?.abort();
+  }, []);
 
   const analyze = useCallback(async () => {
+    controllerRef.current?.abort();
+    controllerRef.current = new AbortController();
     setError(null);
     setBusy(true);
     setStatus(null);
@@ -35,6 +42,7 @@ export default function CodeInput() {
       setJobId(id);
       const result = await pollAnalysis(id, {
         onUpdate: (s) => setStatus(s.status),
+        signal: controllerRef.current.signal,
       });
       setStatus(result.status);
       setFinalStatus(result);
@@ -42,6 +50,7 @@ export default function CodeInput() {
         setError(result.error ?? "Unknown error");
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof ApiError ? err.message : "Unexpected error");
     } finally {
       setBusy(false);

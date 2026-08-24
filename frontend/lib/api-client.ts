@@ -71,16 +71,18 @@ export async function getAnalysis(jobId: string): Promise<JobStatus | null> {
 export interface PollOptions {
   intervalMs?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
   onUpdate?: (status: JobStatus) => void;
 }
 
 /** Poll until terminal state (completed/failed) or timeout. */
 export async function pollAnalysis(
   jobId: string,
-  { intervalMs = 750, timeoutMs = 120_000, onUpdate }: PollOptions = {}
+  { intervalMs = 750, timeoutMs = 120_000, signal, onUpdate }: PollOptions = {}
 ): Promise<JobStatus> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
+    if (signal?.aborted) throw new DOMException("Polling aborted", "AbortError");
     const status = await getAnalysis(jobId);
     if (!status) throw new ApiError(`Job ${jobId} not found`, 404);
     onUpdate?.(status);
@@ -90,11 +92,18 @@ export async function pollAnalysis(
     if (Date.now() > deadline) {
       throw new ApiError(`Job ${jobId} timed out after ${timeoutMs}ms`);
     }
-    await new Promise((r) => setTimeout(r, intervalMs));
+    await new Promise((r, reject) => {
+      const id = setTimeout(r, intervalMs);
+      signal?.addEventListener("abort", () => {
+        clearTimeout(id);
+        reject(new DOMException("Polling aborted", "AbortError"));
+      });
+    });
   }
 }
 
 /** Type-guard re-export so components can narrow completed payloads safely. */
 export function asTopology(status: JobStatus): GraphTopology | null {
-  return status.topology ? GraphTopologySchema.parse(status.topology) : null;
+  const result = GraphTopologySchema.safeParse(status.topology);
+  return result.success ? result.data : null;
 }
