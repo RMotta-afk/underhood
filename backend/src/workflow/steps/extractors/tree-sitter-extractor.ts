@@ -287,8 +287,14 @@ export async function extractWithTreeSitter(
     if (!fnName) return;
     const cls = enclosingClassName(cfg, n);
     const qualified = cls ? `${cls}.${fnName}` : fnName;
-    entities.push({ name: qualified, kind: "function" });
-    entryPoints.add(fnName);
+    entities.push(
+      cls
+        ? { name: qualified, kind: "function", parent: cls }
+        : { name: qualified, kind: "function" }
+    );
+    // Top-level functions are callable units; class entries are chosen after
+    // flows exist (roots of the intra-class call graph), see below.
+    if (!cls) entryPoints.add(qualified);
     const body = n.childForFieldName("body");
     if (body) functionBodies.push({ name: qualified, node: body });
   });
@@ -312,6 +318,37 @@ export async function extractWithTreeSitter(
     const steps: FlowStep[] = [];
     extractSteps(ctx, fn.node, steps);
     if (steps.length > 0) flows.push({ entity: fn.name, steps });
+  }
+
+  // Class entry points: the public API surface is the set of methods no
+  // sibling method calls (roots of the intra-class call graph). Call steps
+  // store bare names (stepForCall), so compare on the last segment. The
+  // constructor only becomes an entry when nothing else qualifies.
+  const methodEntities = entities.filter(
+    (e): e is CodeEntity & { parent: string } => e.kind === "function" && !!e.parent
+  );
+  const methodEntityNames = new Set(methodEntities.map((m) => m.name));
+  const calledBySibling = new Set<string>();
+  for (const flow of flows) {
+    if (!methodEntityNames.has(flow.entity)) continue;
+    for (const step of flow.steps) {
+      if (
+        step.kind === "call" &&
+        step.callee &&
+        methodEntities.some((m) => lastSegment(m.name) === step.callee)
+      ) {
+        calledBySibling.add(step.callee);
+      }
+    }
+  }
+  const publicMethods = methodEntities.filter((m) => !m.name.endsWith(".constructor"));
+  let classEntries = publicMethods.filter((m) => !calledBySibling.has(lastSegment(m.name)));
+  if (classEntries.length === 0 && publicMethods.length > 0) classEntries = publicMethods;
+  if (classEntries.length === 0 && methodEntities.length > 0) classEntries = [...methodEntities];
+  for (const entry of classEntries) entryPoints.add(entry.name);
+  // Methods-less class declarations still need a usable anchor.
+  if (entryPoints.size === 0 && entities.some((e) => e.kind === "class")) {
+    entryPoints.add("(module)");
   }
 
   // Top-level script code (common in Python/Ruby/PHP) becomes its own flow so

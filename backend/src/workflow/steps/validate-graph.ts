@@ -17,6 +17,48 @@ export interface GraphValidation {
   warnings: string[];
 }
 
+/** Weakly-connected component count (undirected reachability). */
+function countComponents(nodeIds: string[], edges: Array<{ source: string; target: string }>): number {
+  const adj = new Map<string, Set<string>>();
+  for (const id of nodeIds) adj.set(id, new Set());
+  for (const e of edges) {
+    adj.get(e.source)?.add(e.target);
+    adj.get(e.target)?.add(e.source);
+  }
+  const seen = new Set<string>();
+  let count = 0;
+  for (const root of nodeIds) {
+    if (seen.has(root)) continue;
+    count++;
+    const queue = [root];
+    seen.add(root);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const next of adj.get(current) ?? []) {
+        if (!seen.has(next)) {
+          seen.add(next);
+          queue.push(next);
+        }
+      }
+    }
+  }
+  return count;
+}
+
+/** True when a call-step callee refers to a real extracted entity, matching
+ * both qualified ("Cart.total") and bare last-segment naming across the
+ * acorn and tree-sitter extractors. */
+function resolvesToEntity(
+  callee: string,
+  entities: Array<{ name: string; kind: string }>
+): boolean {
+  const last = callee.split(".").pop() ?? callee;
+  return entities.some((e) => {
+    if (e.kind !== "function" && e.kind !== "class") return false;
+    return e.name === callee || (e.name.split(".").pop() ?? e.name) === last;
+  });
+}
+
 /** Directed cycle detection (iterative DFS, three-color). */
 function hasDirectedCycle(nodeIds: string[], edges: Array<{ source: string; target: string }>): boolean {
   const adj = new Map<string, string[]>();
@@ -159,14 +201,62 @@ export function validateGraph(
       );
     }
 
-    const nodeIds = new Set(graph.nodes.map((n) => n.id));
+    const nodeKeys = new Set(graph.nodes.flatMap((n) => [n.id, n.label]));
     for (const flow of analysis.flows ?? []) {
       for (const step of flow.steps) {
-        if (step.kind === "call" && step.callee && !nodeIds.has(step.callee)) {
+        if (!(step.kind === "call" && step.callee)) continue;
+        if (nodeKeys.has(step.callee)) continue;
+        if (resolvesToEntity(step.callee, analysis.entities)) {
+          // The callee IS a real extracted entity: a missing node means the
+          // workflow dependency is dropped from the picture — hard error so
+          // the heal loop reconnects it.
+          errors.push(
+            `call from "${flow.entity}" to "${step.callee}" has no matching node in the topology`
+          );
+        } else {
           warnings.push(
             `call from "${flow.entity}" to "${step.callee}" has no matching node in the topology`
           );
         }
+      }
+    }
+
+    // --- Class cohesion (parent-class relationships must survive rendering) ---
+    const classEntityNames = new Set(
+      analysis.entities.filter((e) => e.kind === "class").map((e) => e.name)
+    );
+    const classNodes = graph.nodes.filter((n) => n.type === "class");
+    for (const name of classEntityNames) {
+      if (!classNodes.some((n) => n.id === name || n.label === name)) {
+        errors.push(
+          `class "${name}" is declared in the code but has no "class" container node in the topology`
+        );
+      }
+    }
+    const classNodeIds = new Set(classNodes.map((n) => n.id));
+    for (const node of graph.nodes) {
+      if (node.parent && !classNodeIds.has(node.parent)) {
+        errors.push(
+          `node "${node.id}" sets parent "${node.parent}", which is not a class node in the topology`
+        );
+      }
+    }
+
+    // --- Single-graph mandate: methods/functions related by calls or class
+    // membership MUST form one connected workflow, never sibling trees. ---
+    const hasParentedEntities = analysis.entities.some((e) => e.parent);
+    const hasInterEntityCalls = (analysis.flows ?? []).some((f) =>
+      f.steps.some((s) => s.kind === "call" && s.callee && resolvesToEntity(s.callee, analysis.entities))
+    );
+    if ((hasInterEntityCalls || hasParentedEntities) && graph.nodes.length > 1) {
+      // Class container nodes group their members; they don't need edges of
+      // their own, so connectivity is judged on the operational nodes.
+      const operationalIds = graph.nodes.filter((n) => n.type !== "class").map((n) => n.id);
+      const components = countComponents(operationalIds, graph.edges);
+      if (components > 1) {
+        errors.push(
+          `topology splits into ${components} disconnected components; every function/method must hang off the entry flow(s) in ONE connected graph`
+        );
       }
     }
   }

@@ -61,6 +61,9 @@ export const TOPOLOGY_INSTRUCTIONS = [
   "Rules:",
   "- Every node MUST include plainDescription: a jargon-free, 1-3 sentence explanation a product manager could understand.",
   "- Node types: entry (start), process (computation), io (input/output like files, network, console), branch (decisions/loops), terminal (end).",
+  "- For every class declared in the entities, include ONE container node of type \"class\" labeled with the class name; it explains what the class is responsible for.",
+  "- Nodes representing methods of a class MUST set parent to that class container node's id.",
+  "- The output is ALWAYS ONE connected graph rooted at the entry point(s): every function/method flow must be reachable from an entry through call edges. NEVER emit separate unrelated trees per function or method — methods belong to their class's workflow via caller edges.",
   "- Edges must reference existing node ids via source/target.",
   "- FIDELITY: every conditional in the control-flow outline MUST become a branch node with at least two outgoing edges, one per alternative path.",
   "- FIDELITY: every loop MUST form a cycle in the graph — an edge must lead back into the loop body. Never flatten loops into a single straight-line pass.",
@@ -71,6 +74,7 @@ export const TOPOLOGY_INSTRUCTIONS = [
 ].join("\n");
 
 export function buildTopologyPrompt(analysis: StructuralAnalysis): string {
+  const classEntities = analysis.entities.filter((e) => e.kind === "class");
   const lines = [
     "Analyze this extracted code structure and produce the execution topology.",
     "",
@@ -78,10 +82,18 @@ export function buildTopologyPrompt(analysis: StructuralAnalysis): string {
     JSON.stringify(analysis, null, 2),
     "",
     "Requirements:",
-    `- Start from entry point(s): ${analysis.entryPoints.join(", ")}.`,
-    "- Represent each meaningful entity as a process node using its real name as the label.",
-    `- Model the ${analysis.branches.length} branch(es) and ${analysis.ioOperations.length} IO operation(s) faithfully.`,
+    `- Start from entry point(s): ${analysis.entryPoints.join(", ")} — ONLY these get "entry" nodes; every other function/method is reached through caller edges.`,
+    "- Represent each meaningful entity as a process node using its real name as the label and id.",
   ];
+  if (classEntities.length > 0) {
+    lines.push(
+      `- Declare ONE node of type "class" per class (${classEntities.map((c) => c.name).join(", ")}), labeled with the class name, describing what the class is for. Method nodes set parent to the class node's id.`
+    );
+  }
+  lines.push(
+    `- Model the ${analysis.branches.length} branch(es) and ${analysis.ioOperations.length} IO operation(s) faithfully.`,
+    "- The result must be a SINGLE connected graph: if the outline shows one entity calling another, their nodes MUST be joined by an edge."
+  );
   if (analysis.flows && analysis.flows.length > 0) {
     lines.push(
       "- The per-entity control-flow outline below is authoritative for ORDER and SHAPE:",

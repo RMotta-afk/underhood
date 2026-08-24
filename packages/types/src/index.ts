@@ -2,13 +2,16 @@ import { z } from "zod";
 
 // --- SDD §3.1 Graph Topology Schema ---
 
-export const NodeTypeSchema = z.enum(["entry", "process", "io", "branch", "terminal"]);
+export const NodeTypeSchema = z.enum(["entry", "process", "io", "branch", "terminal", "class"]);
 export type NodeType = z.infer<typeof NodeTypeSchema>;
 
 export const NodeSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1),
   type: NodeTypeSchema,
+  // Container link: method/process nodes belonging to a class point at the
+  // id of that class's container node, so renderers can group them visually.
+  parent: z.string().min(1).optional(),
   plainDescription: z
     .string()
     .min(1)

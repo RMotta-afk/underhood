@@ -38,6 +38,8 @@ export type EntityKind = z.infer<typeof EntityKindSchema>;
 export const CodeEntitySchema = z.object({
   name: z.string(),
   kind: EntityKindSchema,
+  /** Containing class for methods (qualified entity "Class.method"). */
+  parent: z.string().optional(),
 });
 export type CodeEntity = z.infer<typeof CodeEntitySchema>;
 
@@ -131,6 +133,22 @@ function calleeName(callee: CallExpression["callee"]): string {
     inner = (inner as unknown as { argument: Node }).argument;
   }
   if (inner.type === "Identifier") return (inner as unknown as { name: string }).name;
+  if (inner.type === "MemberExpression") {
+    const m = inner as unknown as {
+      object: Node;
+      property: Node;
+    };
+    const prop = m.property as unknown as { name?: string; value?: unknown };
+    const propName =
+      prop.name ??
+      (typeof prop.value === "string" || typeof prop.value === "number"
+        ? String(prop.value)
+        : undefined);
+    if (!propName) return "?";
+    // `this.helper()` must resolve to the class-method entity space.
+    if (m.object.type === "ThisExpression") return `this.${propName}`;
+    return `${sourceText(m.object)}.${propName}`;
+  }
   return sourceText(inner);
 }
 
@@ -226,7 +244,9 @@ function directCall(expr: Node | null | undefined): CallExpression | null {
 
 interface FlowContext {
   js: string;
-  functionNames: Set<string>;
+  /** Bare-name -> canonical entity-name resolution for call targets
+   * (e.g. `helper` -> `helper`, `total` -> `Cart.total`). */
+  callTargets: Map<string, string>;
   importedIoKinds: Map<string, IoOperation["kind"]>;
 }
 
@@ -236,6 +256,11 @@ function embeddedCallSteps(ctx: FlowContext, expr: Node | null | undefined): Flo
   if (!expr) return [];
   const steps: FlowStep[] = [];
   walk(expr, (n) => {
+    if (n.type === "NewExpression") {
+      const step = stepForNew(ctx, n as unknown as { callee: Node });
+      if (step) steps.push(step);
+      return;
+    }
     if (n.type !== "CallExpression") return;
     const step = stepForCall(ctx, n as CallExpression);
     if (step) steps.push(step);
@@ -243,16 +268,31 @@ function embeddedCallSteps(ctx: FlowContext, expr: Node | null | undefined): Flo
   return steps;
 }
 
+/** `new ClassName()` resolves against declared classes so instantiation
+ * becomes a visible dependency edge into the class container. */
+function stepForNew(
+  ctx: FlowContext,
+  expr: { callee: Node }
+): FlowStep | null {
+  const name = calleeName(expr.callee as unknown as CallExpression["callee"]);
+  const target = ctx.callTargets.get(`new:${name}`);
+  return target ? { kind: "call", label: `create ${target}`, callee: target } : null;
+}
+
 function stepForCall(
   ctx: FlowContext,
   call: CallExpression
 ): FlowStep | null {
-  const name = calleeName(call.callee);
-  if (ctx.functionNames.has(name)) {
-    return { kind: "call", label: `call ${name}`, callee: name };
+  const raw = calleeName(call.callee);
+  // `this.helper()` / `obj.helper()` -> resolve the member name against known
+  // entities; plain identifiers resolve directly.
+  const bare = raw.includes(".") ? raw.split(".").pop()! : raw;
+  const target = ctx.callTargets.get(raw) ?? ctx.callTargets.get(bare);
+  if (target) {
+    return { kind: "call", label: `call ${target}`, callee: target };
   }
-  const io = ioKindFor(name, ctx.importedIoKinds);
-  if (io) return { kind: "io", label: name, callee: name };
+  const io = ioKindFor(raw, ctx.importedIoKinds);
+  if (io) return { kind: "io", label: raw, callee: raw };
   return null;
 }
 
@@ -360,15 +400,17 @@ function extractSteps(ctx: FlowContext, statements: Node[]): FlowStep[] {
   return steps;
 }
 
-/** Extract ordered flows for every top-level named function unit. */
+/** Extract ordered flows for every top-level named function unit, every
+ * class method, and the module-level side-effect script itself. */
 function extractFlows(
   js: string,
   program: Program,
   importedIoKinds: Map<string, IoOperation["kind"]>,
-  functionNames: Set<string>
+  callTargets: Map<string, string>
 ): EntityFlow[] {
-  const ctx: FlowContext = { js, functionNames, importedIoKinds };
+  const ctx: FlowContext = { js, callTargets, importedIoKinds };
   const flows: EntityFlow[] = [];
+  const moduleStatements: Node[] = [];
   for (const stmt of program.body) {
     if (stmt.type === "FunctionDeclaration") {
       const fn = stmt as unknown as { id: { name: string } | null; body: Node };
@@ -380,6 +422,21 @@ function extractFlows(
       }
       continue;
     }
+    if (stmt.type === "ClassDeclaration") {
+      const cls = stmt as unknown as { id: { name: string } | null; body: Node };
+      if (cls.id?.name) {
+        for (const member of classMethods(cls.body)) {
+          flows.push({
+            entity: `${cls.id.name}.${member.name}`,
+            steps: extractSteps(ctx, bodyStmts(member.body)),
+          });
+        }
+      }
+      continue;
+    }
+    if (stmt.type === "ImportDeclaration" || stmt.type === "ExportNamedDeclaration" || stmt.type === "ExportDefaultDeclaration") {
+      continue;
+    }
     if (stmt.type === "VariableDeclaration") {
       const decl = stmt as unknown as {
         declarations: Array<{
@@ -387,21 +444,57 @@ function extractFlows(
           init: Node | null;
         }>;
       };
+      let declaredUnit = false;
       for (const d of decl.declarations) {
         const init = d.init as unknown as { type?: string; body?: Node } | null;
         const isFn =
           init?.type === "ArrowFunctionExpression" ||
           init?.type === "FunctionExpression";
         if (isFn && d.id.name) {
+          declaredUnit = true;
           flows.push({
             entity: d.id.name,
             steps: extractSteps(ctx, bodyStmts(init.body)),
           });
         }
       }
+      // Declarations that are NOT function units (e.g. `const cart = new Cart()`)
+      // are module-level behavior.
+      if (!declaredUnit) moduleStatements.push(stmt);
+      continue;
     }
+    moduleStatements.push(stmt);
+  }
+  if (moduleStatements.length > 0) {
+    flows.push({ entity: "(module)", steps: extractSteps(ctx, moduleStatements) });
   }
   return flows.filter((f) => f.steps.length > 0);
+}
+
+interface MethodUnit {
+  name: string;
+  body: Node;
+}
+
+/** Named method units of a class body (constructor included). */
+function classMethods(classBody: Node): MethodUnit[] {
+  const out: MethodUnit[] = [];
+  const body = classBody as unknown as { body?: Node[] };
+  for (const member of body.body ?? []) {
+    if (member.type !== "MethodDefinition" && member.type !== "PropertyDefinition") continue;
+    const m = member as unknown as {
+      kind?: string;
+      key: Node;
+      value: Node | null;
+    };
+    const name = (m.key as unknown as { name?: string }).name;
+    const fnNode =
+      m.value && (m.value.type === "FunctionExpression" || m.value.type === "ArrowFunctionExpression")
+        ? (m.value as unknown as { body: Node })
+        : null;
+    if (name && fnNode) out.push({ name, body: fnNode.body });
+  }
+  return out;
 }
 
 /** Strip TypeScript syntax via Bun's native transpiler, then parse with acorn. */
@@ -498,8 +591,16 @@ export function analyzeJsTs(rawCode: string): StructuralAnalysis {
         break;
       }
       case "ClassDeclaration": {
-        const cls = n as unknown as { id: { name: string } | null };
-        if (cls.id?.name) entities.push({ name: cls.id.name, kind: "class" });
+        const cls = n as unknown as { id: { name: string } | null; body: Node };
+        if (!cls.id?.name) break;
+        entities.push({ name: cls.id.name, kind: "class" });
+        for (const member of classMethods(cls.body)) {
+          entities.push({
+            name: `${cls.id.name}.${member.name}`,
+            kind: "function",
+            parent: cls.id.name,
+          });
+        }
         break;
       }
       case "IfStatement":
@@ -547,10 +648,55 @@ export function analyzeJsTs(rawCode: string): StructuralAnalysis {
   });
 
   // Per-entity control-flow outline (T6.1) for downstream topology fidelity.
-  const functionNames = new Set(
-    uniqueEntities.filter((e) => e.kind === "function").map((e) => e.name)
+  // Call targets resolve bare member names to their qualified class method
+  // (`total` -> `Cart.total`) and classes via `new:` (instantiation edges).
+  const callTargets = new Map<string, string>();
+  for (const e of uniqueEntities) {
+    if (e.kind === "function") {
+      callTargets.set(e.name, e.name);
+    } else if (e.kind === "class") {
+      callTargets.set(`new:${e.name}`, e.name);
+    }
+  }
+  const methodEntities = uniqueEntities.filter(
+    (e): e is CodeEntity & { parent: string } => e.kind === "function" && !!e.parent
   );
-  const flows = extractFlows(js, program, importedIoKinds, functionNames);
+  for (const m of methodEntities) {
+    const bare = m.name.split(".").pop()!;
+    if (!callTargets.has(bare)) callTargets.set(bare, m.name);
+  }
+  const flows = extractFlows(js, program, importedIoKinds, callTargets);
+
+  // Class entry points: the public API surface is the set of methods no
+  // sibling method calls (the roots of the intra-class call graph). The
+  // constructor is only an entry when nothing else is. This keeps the
+  // generated graph anchored on real usage instead of one tree per method.
+  const methodEntityNames = new Set(methodEntities.map((m) => m.name));
+  const calledBySibling = new Set<string>();
+  for (const flow of flows) {
+    if (!methodEntityNames.has(flow.entity)) continue;
+    for (const step of flow.steps) {
+      if (step.kind === "call" && step.callee && methodEntityNames.has(step.callee)) {
+        calledBySibling.add(step.callee);
+      }
+    }
+  }
+  const publicMethods = methodEntities.filter((m) => !m.name.endsWith(".constructor"));
+  let classEntries = publicMethods.filter((m) => !calledBySibling.has(m.name));
+  if (classEntries.length === 0 && publicMethods.length > 0) {
+    classEntries = publicMethods;
+  }
+  if (classEntries.length === 0 && methodEntities.length > 0) {
+    classEntries = [...methodEntities];
+  }
+  for (const entry of classEntries) entryPoints.add(entry.name);
+  // Methods-less class declarations still need a usable anchor.
+  if (
+    entryPoints.size === 0 &&
+    uniqueEntities.some((e) => e.kind === "class")
+  ) {
+    entryPoints.add("(module)");
+  }
 
   return StructuralAnalysisSchema.parse({
     language,
