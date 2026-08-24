@@ -169,6 +169,25 @@ A real defect drove the fidelity follow-up: a binary-search snippet once rendere
 | **Provider via env** | OpenAI / Groq / OpenAI-compatible base URL — workflow code stays provider-agnostic |
 | **Docker Compose + Caddy** | Reproducible demo; replica parity locally; “copy `env.example` → `.env` → up” as the acceptance path |
 | **Langfuse (optional)** | Cost/latency/trace visibility without building an observability product |
+| **Husky pre-commit pipeline** | Local quality gate before anything lands on `main`: secrets scan → lint-staged ESLint → full-repo `tsc` → `bun test`; `commit-msg` enforces conventional prefixes (`feature|fix|docs|…`) |
+| **`.context` wiki + task DAG** | Agent-managed memory for context isolation and predictability: SDD as semantic anchor, `.context/decomposition.json` + `tasks/` for the mission graph, `.context/wiki/` (`index/` + dated `log/`) so every completed touchpoint leaves a recoverable trail instead of chat-only state |
+
+### Quality & context tooling
+
+**Pre-commit (code quality).** Hooks under `.husky/` make “green locally” a hard requirement, not a courtesy:
+
+1. `bun run check:secrets` — staged-diff secrets firewall (never commit keys; agents never read `.env`)
+2. `lint-staged` — ESLint on staged TypeScript
+3. `bun run typecheck` + `bun test` — monorepo typecheck and unit/integration suite
+4. `commit-msg` — conventional commit prefix gate
+
+CI remains the backstop if hooks are bypassed; the intent is to fail fast on the developer machine before review.
+
+**`.context` wiki (context isolation & predictability).** Multi-agent / long-horizon work needs a durable place for *what is true now* and *what just changed*, separate from application code:
+
+- **Isolation** — role protocol in `.context/AGENT.md` (who may touch what), secrets firewall, and SDD-bound architecture so agents do not invent shadow stacks
+- **Predictability** — mission → goals → tasks as a validated DAG; task cards carry acceptance gates; wiki `index/` tracks lifecycle position; wiki `log/YYYY-MM-DD-*.md` is mandatory episodic memory on feature/config/infra changes
+- **Handoff** — a new session can reconstruct state from SDD + wiki + tasks without replaying the entire chat
 
 ### What we weighed against it
 
