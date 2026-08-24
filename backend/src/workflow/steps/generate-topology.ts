@@ -5,7 +5,7 @@ import {
   TopologyGenerationSchema,
   withEdgeDefaults,
 } from "@underhood/types";
-import { loadEnv, type Env } from "../../env";
+import { env, loadEnv, type Env } from "../../env";
 import type { StructuralAnalysis } from "./analyze-code";
 
 // T2.2 — generateTopologyStep: LLM topology generation (SDD §4.1 step 2).
@@ -130,11 +130,22 @@ export async function generateTopology(
 ): Promise<GraphTopology> {
   const agent =
     (generatorOverride as unknown as Agent | undefined) ?? createTopologyAgent();
-  const response = await agent.generate(
-    [{ role: "user", content: buildTopologyPrompt(analysis) }],
-    { structuredOutput: { schema: TopologyGenerationSchema } }
-  );
-  // Strict validation: never trust the wire format even with structured output enabled.
+
+  const timeoutMs = env().LLM_TIMEOUT_MS;
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`LLM generation timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  const response = await Promise.race([
+    agent.generate(
+      [{ role: "user", content: buildTopologyPrompt(analysis) }],
+      { structuredOutput: { schema: TopologyGenerationSchema } }
+    ),
+    timeoutPromise as Promise<any>
+  ]);
+
   return GraphTopologySchema.parse(withEdgeDefaults(response.object));
 }
 

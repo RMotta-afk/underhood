@@ -26,6 +26,8 @@ const EnvSchema = z
     LANGFUSE_SECRET_KEY: z.string().min(1).optional(),
     LANGFUSE_BASE_URL: z.string().url().optional(),
 
+    LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(90000),
+
     // App
     PORT: z.coerce.number().int().positive().default(3000),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
