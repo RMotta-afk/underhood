@@ -17,7 +17,12 @@ export async function wirePostgres(connectionString: string): Promise<PostgresWi
   const store = new PostgresStore({ id: "underhood-storage", connectionString });
   await store.init(); // creates Mastra tables when used outside a Mastra instance
 
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({
+    connectionString,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
   await ensureGraphCacheTable(pool);
 
   return { pool, store };
