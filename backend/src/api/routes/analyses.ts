@@ -25,21 +25,35 @@ export async function ensureAnalysisJobsTable(pool: Pool): Promise<void> {
   `);
 }
 
+const MAX_RAW_CODE_BYTES = 512 * 1024;
+
 /** Validate input, persist a queued job, and hand it to the queue. */
 export async function createAnalysisJob(
   pool: Pool,
   boss: PgBoss,
   rawCode: string
 ): Promise<JobSubmitResponse> {
-  if (!rawCode || typeof rawCode !== "string" || rawCode.trim().length === 0) {
-    throw new Error("rawCode is required");
+  if (
+    !rawCode ||
+    typeof rawCode !== "string" ||
+    rawCode.trim().length === 0 ||
+    rawCode.length > MAX_RAW_CODE_BYTES
+  ) {
+    throw new Error(
+      `rawCode is required and must be under ${MAX_RAW_CODE_BYTES} bytes`
+    );
   }
   const jobId = randomUUID();
   await pool.query(
     `INSERT INTO analysis_jobs (job_id, status) VALUES ($1, 'queued')`,
     [jobId]
   );
-  await boss.send(ANALYSIS_QUEUE, { jobId, rawCode });
+  try {
+    await boss.send(ANALYSIS_QUEUE, { jobId, rawCode });
+  } catch (err) {
+    await setJobStatus(pool, jobId, "failed", undefined, "queueing failed");
+    throw new Error("Job enqueue failed", { cause: err });
+  }
   return { jobId };
 }
 
