@@ -82,7 +82,7 @@ describeDb("Postgres wiring (T2.4 integration)", () => {
   });
 
   test("pg-boss send/fetch works on the same DATABASE_URL (queue born with db)", async () => {
-    resetBoss();
+    await resetBoss();
     const boss = await getBoss(DB!);
     await boss.send(ANALYSIS_QUEUE, { rawCode: "const y = 2;", jobId: "test-job" });
     const jobs = await boss.fetch<{ rawCode: string; jobId: string }>(ANALYSIS_QUEUE, {
