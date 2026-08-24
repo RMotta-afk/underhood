@@ -129,24 +129,33 @@ export async function findSimilarTopology(
   embedding: number[],
   pipelineVersion: string
 ): Promise<{ topology: GraphTopology; similarity: number } | null> {
-  const result = await pool.query<{
-    topology: unknown;
-    embedding: number[];
-  }>(
-    `SELECT topology, embedding FROM graph_cache
-     WHERE embedding IS NOT NULL AND embedding_model = $1 AND pipeline_version = $2`,
-    [modelId, pipelineVersion]
-  );
-
   let best: { topology: GraphTopology; similarity: number } | null = null;
-  for (const row of result.rows) {
-    const similarity = cosineSimilarity(embedding, row.embedding);
-    if (similarity >= threshold && (!best || similarity > best.similarity)) {
-      best = {
-        topology: row.topology as GraphTopology,
-        similarity,
-      };
+  let offset = 0;
+  const limit = 500;
+
+  for (;;) {
+    const result = await pool.query<{
+      topology: unknown;
+      embedding: number[];
+    }>(
+      `SELECT topology, embedding FROM graph_cache
+       WHERE embedding IS NOT NULL AND embedding_model = $1 AND pipeline_version = $2
+       LIMIT $3 OFFSET $4`,
+      [modelId, pipelineVersion, limit, offset]
+    );
+
+    if (result.rows.length === 0) break;
+
+    for (const row of result.rows) {
+      const similarity = cosineSimilarity(embedding, row.embedding);
+      if (similarity >= threshold && (!best || similarity > best.similarity)) {
+        best = {
+          topology: row.topology as GraphTopology,
+          similarity,
+        };
+      }
     }
+    offset += limit;
   }
   return best;
 }
