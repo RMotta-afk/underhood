@@ -202,6 +202,7 @@ CI remains the backstop if hooks are bypassed; the intent is to fail fast on the
 | **Shipped 2D + 3D toggle** | Two renderers to keep honest with the same fidelity bar; 3D impressed demos but 2D carried comprehension. Topology stays renderer-agnostic if 3D returns later |
 | **Always trust the model’s graph** | Cheaper and simpler — and how we got the binary-search regression. Rejected as a product principle |
 | **ELK vs dagre** | Dagre was enough for snippet-scale graphs; ELK remains an option if layouts get denser |
+| **Deep responsivity / polish pass** | **Mostly deferred.** Little work went into responsive layouts, mobile breakpoints, or fine-grained UI performance tuning. Building and iterating this stack was already heavy on **agent/tool token spend** (long context, multi-file edits, pre-commit typecheck+test loops). Extra front-end polish rounds would have burned more tokens for marginal product signal versus pipeline fidelity, multi-language parse, and cache/dedup. The shipped UI targets a desktop paste-and-visualize demo, not a fully responsive product shell. |
 
 ---
 
