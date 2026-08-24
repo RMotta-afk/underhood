@@ -42,7 +42,23 @@ export type GraphEdge = z.infer<typeof EdgeSchema>;
 // the SAME field schemas (single source of truth) but keeps `animated` a
 // plain required boolean and `label` a plain required string for generation;
 // defaults are applied afterwards via withEdgeDefaults() before the public
-// GraphTopologySchema parse.
+// GraphTopologySchema parse. Same for nodes: optional `parent`/`metadata`
+// must be required+nullable for strict mode, normalized afterwards.
+const GenerationNodeSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  type: NodeTypeSchema,
+  parent: z.string().nullable().describe("Parent class node id if this node belongs to a class, otherwise null"),
+  plainDescription: z
+    .string()
+    .min(1)
+    .describe("Jargon-free, 1-3 sentence explanation of what this node does, understandable by non-coders"),
+  metadata: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+    .nullable()
+    .describe("Optional typed metadata"),
+});
+
 const GenerationEdgeSchema = z.object({
   ...EdgeSchema.shape,
   animated: z.boolean(),
@@ -50,10 +66,28 @@ const GenerationEdgeSchema = z.object({
 });
 
 export const TopologyGenerationSchema = z.object({
-  nodes: z.array(NodeSchema),
+  nodes: z.array(GenerationNodeSchema),
   edges: z.array(GenerationEdgeSchema),
   detectedPatterns: z.array(z.string()),
 });
+
+/** Normalize strict-mode nulls back to the public schema shape (undefined for absent optionals). */
+export function withNodeDefaults(value: unknown): unknown {
+  if (typeof value !== "object" || value === null) return value;
+  const { nodes } = value as { nodes?: unknown };
+  if (!Array.isArray(nodes)) return value;
+  return {
+    ...(value as Record<string, unknown>),
+    nodes: nodes.map((node) => {
+      if (typeof node !== "object" || node === null) return node;
+      const n = node as Record<string, unknown>;
+      const out: Record<string, unknown> = { ...n };
+      if (out.parent === null) delete out.parent;
+      if (out.metadata === null) delete out.metadata;
+      return out;
+    }),
+  };
+}
 
 /** Apply edge-level defaults to a raw generated topology payload. */
 export function withEdgeDefaults(value: unknown): unknown {

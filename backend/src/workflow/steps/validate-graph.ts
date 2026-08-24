@@ -2,6 +2,7 @@ import {
   GraphTopologySchema,
   TopologyGenerationSchema,
   withEdgeDefaults,
+  withNodeDefaults,
 } from "@underhood/types";
 import type { GraphTopology } from "@underhood/types";
 import type { StructuralAnalysis } from "./analyze-code";
@@ -310,7 +311,7 @@ async function requestGeneration(
   const response = await generator.generate(messages, {
     structuredOutput: { schema: TopologyGenerationSchema },
   });
-  return withEdgeDefaults(response.object);
+  return withEdgeDefaults(withNodeDefaults(response.object));
 }
 
 /**

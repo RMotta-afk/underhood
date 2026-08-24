@@ -4,6 +4,7 @@ import {
   GraphTopologySchema,
   TopologyGenerationSchema,
   withEdgeDefaults,
+  withNodeDefaults,
 } from "@underhood/types";
 import { env, loadEnv, type Env } from "../../env";
 import type { StructuralAnalysis } from "./analyze-code";
@@ -131,7 +132,12 @@ export async function generateTopology(
   const agent =
     (generatorOverride as unknown as Agent | undefined) ?? createTopologyAgent();
 
-  const timeoutMs = env().LLM_TIMEOUT_MS;
+  let timeoutMs = 90000;
+  try {
+    timeoutMs = env().LLM_TIMEOUT_MS;
+  } catch {
+    // env() requires DATABASE_URL even in unit tests with mock generator
+  }
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => {
       reject(new Error(`LLM generation timed out after ${timeoutMs}ms`));
@@ -146,7 +152,7 @@ export async function generateTopology(
     timeoutPromise as Promise<any>
   ]);
 
-  return GraphTopologySchema.parse(withEdgeDefaults(response.object));
+  return GraphTopologySchema.parse(withEdgeDefaults(withNodeDefaults(response.object)));
 }
 
 // Re-exported so validateGraphStep (T2.3) can share the same contract source.
