@@ -123,14 +123,15 @@ async function initApi(): Promise<void> {
 
 function ensureInit(): void {
   if (api || initPromise) return;
-  initPromise = initApi()
-    .then(() => {
-      initPromise = null;
-    })
-    .catch((err: unknown) => {
+  initPromise = (async () => {
+    try {
+      await initApi();
+    } catch (err) {
       console.error("analysis API init failed:", err instanceof Error ? err.message : err);
-      initPromise = null; // allow retry on next request
-    });
+    } finally {
+      initPromise = null;
+    }
+  })();
 }
 
 const server = Bun.serve({
@@ -189,3 +190,20 @@ const server = Bun.serve({
 });
 
 console.log(`@underhood/backend listening on :${server.port}`);
+
+async function shutdown() {
+  console.log("Shutting down...");
+  await server.stop();
+  if (api) {
+    await api.boss.stop();
+    await api.pool.end();
+  }
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => {
+  void shutdown();
+});
+process.on("SIGINT", () => {
+  void shutdown();
+});
