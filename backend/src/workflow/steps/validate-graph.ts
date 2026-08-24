@@ -17,11 +17,20 @@ export interface GraphValidation {
   warnings: string[];
 }
 
-/** Weakly-connected component count (undirected reachability). */
-function countComponents(nodeIds: string[], edges: Array<{ source: string; target: string }>): number {
+/** Weakly-connected component count (undirected reachability). 
+ * Note: Only operational nodes are considered. Edges involving class containers
+ * are ignored as they are conceptual groupings. */
+function countComponents(
+  nodeIds: string[],
+  edges: Array<{ source: string; target: string }>,
+  classNodeIds: Set<string>
+): number {
   const adj = new Map<string, Set<string>>();
   for (const id of nodeIds) adj.set(id, new Set());
   for (const e of edges) {
+    // Exclude edges touching class containers for connectivity
+    if (classNodeIds.has(e.source) || classNodeIds.has(e.target)) continue;
+    if (!adj.has(e.source) || !adj.has(e.target)) continue;
     adj.get(e.source)?.add(e.target);
     adj.get(e.target)?.add(e.source);
   }
@@ -251,8 +260,9 @@ export function validateGraph(
     if ((hasInterEntityCalls || hasParentedEntities) && graph.nodes.length > 1) {
       // Class container nodes group their members; they don't need edges of
       // their own, so connectivity is judged on the operational nodes.
-      const operationalIds = graph.nodes.filter((n) => n.type !== "class").map((n) => n.id);
-      const components = countComponents(operationalIds, graph.edges);
+        const operationalIds = graph.nodes.filter((n) => n.type !== "class").map((n) => n.id);
+        const classNodeIds = new Set(classNodes.map((n) => n.id));
+        const components = countComponents(operationalIds, graph.edges, classNodeIds);
       if (components > 1) {
         errors.push(
           `topology splits into ${components} disconnected components; every function/method must hang off the entry flow(s) in ONE connected graph`
