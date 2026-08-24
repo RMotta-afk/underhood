@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -8,6 +8,8 @@ import {
   Handle,
   Position,
   ReactFlow,
+  useNodesState,
+  useEdgesState,
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -76,12 +78,22 @@ const nodeTypes = { codeStep: CodeStepNode, classGroup: ClassGroupNode };
 
 export default function Graph2D({ topology }: { topology: GraphTopology }) {
   const view = useMemo(() => buildTopologyView(topology), [topology]);
+  
+  const [nodes, setNodes, onNodesChange] = useNodesState(view.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(view.edges);
+
+  useEffect(() => {
+    setNodes(view.nodes);
+    setEdges(view.edges);
+  }, [view, setNodes, setEdges]);
 
   return (
     <div className="h-[480px] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
       <ReactFlow
-        nodes={view.nodes}
-        edges={view.edges}
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
         minZoom={0.2}
