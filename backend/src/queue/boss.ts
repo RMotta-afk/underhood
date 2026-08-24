@@ -11,34 +11,28 @@ export const ANALYSIS_QUEUE = "analysis-jobs";
 /** Singleton accessor; idempotent across hot reloads and multiple callers. */
 export function getBoss(connectionString: string): Promise<PgBoss> {
   if (bossInstance) return startPromise ?? Promise.resolve(bossInstance);
-  bossInstance = new PgBoss({ connectionString });
-  // v12 requires queues to exist before send(); create ours right after schema boot.
-  startPromise = bossInstance
-    .start()
-    .then(async (b) => {
-      try {
-        await b.createQueue(ANALYSIS_QUEUE);
-      } catch {
-        // already exists — fine
-      }
-      return b;
-    })
-    .then((b) => {
-      bossInstance = b;
-      return b;
-    });
+
+  const boss = new PgBoss({ connectionString });
+  startPromise = (async () => {
+    await boss.start();
+    try {
+      await boss.createQueue(ANALYSIS_QUEUE);
+    } catch {
+      // already exists — fine
+    }
+    bossInstance = boss;
+    return boss;
+  })();
+
   return startPromise;
 }
 
 /** Test helper: stop and forget the singleton so each integration run starts
  * clean without leaking the previous instance's timers/pollers. */
-export function resetBoss(): void {
+export async function resetBoss(): Promise<void> {
   if (startPromise) {
-    void startPromise
-      .then((b) => b.stop())
-      .catch(() => {
-        /* already stopped */
-      });
+    const b = await startPromise;
+    await b.stop();
   }
   bossInstance = null;
   startPromise = null;
